@@ -165,8 +165,16 @@
   .tour-ctl button:hover{border-color:var(--ink)}
   .tour-ctl button.pri{background:var(--ink);border-color:var(--ink);color:#fff}
   .tour-ctl .sp{flex:1}
-  .tour-bar{height:3px;background:var(--rule);border-radius:2px;margin-top:11px;overflow:hidden}
-  .tour-bar i{display:block;height:100%;background:var(--head);width:0;border-radius:2px}
+  .tour-tip .meta .num{color:var(--ink-soft);letter-spacing:.04em}
+  /* 진행 막대는 단계 하나당 한 칸. 칸을 누르면 그 단계로 건너뛴다. 장이 바뀌는 칸은 앞에 틈을 둔다 */
+  .tour-bar{display:flex;gap:2px;margin-top:11px}
+  .tour-bar .seg{flex:1;min-width:3px;height:12px;padding:4px 0 5px;border:0;background:none;cursor:pointer}
+  .tour-bar .seg.br{margin-left:12px}
+  .tour-bar .seg i{display:block;height:3px;background:var(--rule);border-radius:2px;overflow:hidden}
+  .tour-bar .seg i b{display:block;height:100%;width:0;background:var(--head);border-radius:2px}
+  .tour-bar .seg.done i b{width:100%}
+  .tour-bar .seg:hover i{background:#B9C2CD}
+  .tour-bar .seg:focus-visible{outline:2px solid var(--head);outline-offset:2px;border-radius:3px}
 
   /* 애니메이션 */
   @keyframes pop{from{opacity:0;transform:scale(.3)}to{opacity:1;transform:scale(1)}}
@@ -852,7 +860,7 @@ $("bname").onkeydown = e=>{ if(e.key==="Enter") $("btnBranch").click(); };
 
 /* ───────── 자동 안내 ───────── */
 const TOUR = [
-  { title:"이 도구가 하는 일",
+  { ch:"1부 · 혼자서 시작하기", title:"이 도구가 하는 일",
     body:"Git에서 브랜치가 갈라지고 다시 합쳐지는 과정을 <b>지하철 노선도</b>로 보여줍니다. 커밋은 <b>역</b>, 브랜치는 <b>노선</b>, 병합 커밋은 <b>환승역</b>입니다. 지금부터 실제로 하나씩 해보겠습니다." },
 
   { sel:".map", title:"가운데가 노선도입니다",
@@ -883,11 +891,15 @@ const TOUR = [
     body:"이제 커밋하면 <code>feature-jump</code> 쪽으로 선로가 뻗습니다. main은 건드리지 않은 채로 아래쪽에 새 노선이 생기는 걸 보세요.",
     act:()=>{ cmdCommit("점프 물리"); tLater(()=>cmdCommit("이단 점프"),700); } },
 
+  { sel:"#btnPush", title:"기능 노선도 서버에 올리기",
+    body:"<code>feature-jump</code>는 <b>지금까지 내 컴퓨터에만</b> 있었습니다. <code>git push -u origin feature-jump</code>로 올리면 서버 띠에 <code>origin/feature-jump</code> 이름표가 <b>새로</b> 생깁니다. 새 브랜치는 이렇게 올려야 팀원이 볼 수 있습니다.",
+    act:()=>{ cmdPush(); } },
+
   { sel:"#selSwitch", title:"브랜치 이동",
     body:"다른 노선으로 갈아탈 때 씁니다. 실제 명령은 <code>git switch main</code>입니다. main으로 돌아가 보겠습니다.",
     act:()=>{ cmdSwitch("main"); } },
 
-  { sel:"#btnTeam", title:"그 사이 팀원이 원격에 커밋했다면",
+  { ch:"2부 · 팀과 주고받기", sel:"#btnTeam", title:"그 사이 팀원이 원격에 커밋했다면",
     body:"내가 기능을 만드는 동안 팀원도 작업을 올립니다. 팀 공용 저장소가 <b>원격(origin)</b>이고, 아래 <b>서버 띠</b>의 <code>origin/main</code> 이름표가 그 위치입니다. 팀원이 커밋하는 상황을 만들어 보겠습니다.",
     act:()=>{ cmdTeamCommit("UI 폰트 교체"); } },
 
@@ -916,10 +928,10 @@ const TOUR = [
     body:"맨 끝에 가운데가 채워진 동그라미가 <b>병합 커밋</b>입니다. Git에서 <b>부모가 둘인 유일한 커밋</b>이고, 갈라졌던 기록이 그대로 남습니다." },
 
   { sel:"#btnPush", title:"올려서 팀원과 공유",
-    body:"합친 결과를 <code>git push</code>로 원격에 올립니다. <code>origin/main</code> 이름표가 내 <code>main</code>과 같은 역으로 따라오면 팀원도 이 작업을 받아갈 수 있습니다.",
+    body:"합친 결과를 <code>git push</code>로 원격에 올립니다. <code>origin/main</code> 이름표가 내 <code>main</code>과 같은 역으로 따라오면 팀원도 이 작업을 받아갈 수 있습니다. 서버 띠의 <code>origin/feature-jump</code>는 <b>올렸던 자리에 그대로</b> 남아 있는데, 이름표는 저마다 따로 움직이기 때문입니다.",
     act:()=>{ cmdPush(); } },
 
-  { sel:".legend", title:"기호 읽는 법",
+  { ch:"3부 · 정리", sel:".legend", title:"기호 읽는 법",
     body:"빈 동그라미는 보통 커밋, 가운데가 찬 동그라미는 병합 커밋, 회색 점선은 rebase 후 버려진 옛 커밋, 서버 띠 쪽 흐린 점선은 아직 fetch하지 않은 역입니다." },
 
   { sel:"#log", title:"실제 git 명령",
@@ -932,13 +944,19 @@ const TOUR = [
     body:"잘못 눌러도 <b>한 단계 되돌리기</b>와 <b>처음부터</b>가 있습니다. 안내를 마칩니다. 이제 자유 모드에서 직접 해보세요." }
 ];
 
+// 장 이름은 시작 단계에만 적고 나머지는 이어받는다 (단계를 넣고 빼도 경계가 안 어긋난다)
+const TOUR_CH = TOUR.reduce((a,s,i)=>{ a[i] = s.ch || a[i-1] || ""; return a; }, []);
+
 let tIdx = 0, tRaf = null, tPlaying = true, tEls = null, tActs = [];
 const TOUR_DOCK = 20;        // 노선도 패널과 말풍선 사이 고정 여백
 let tT0 = 0, tPauseAt = 0;   // 단계 시작 시각 / 일시정지한 시각
 let tSnap = [];              // 단계 진입 시점의 노선도 상태
 // 단계 동작(act)은 예약해두고 단계를 넘기거나 안내를 닫을 때 전부 취소한다.
 // (예약된 커밋이 안내를 닫은 뒤에 실행되던 문제)
-const tLater = (fn, ms) => { tActs.push(setTimeout(fn, ms)); };
+// 건너뛰는 중에는 예약을 기다리지 않고 바로 실행한다.
+// 안 그러면 뒤이은 tClear에 지워져 그 단계의 두 번째 동작이 통째로 빠진다
+let tJumping = false;
+const tLater = (fn, ms) => { if(tJumping) fn(); else tActs.push(setTimeout(fn, ms)); };
 const tClear = () => { tActs.forEach(clearTimeout); tActs = []; };
 
 // 안내 단계를 오갈 때 노선도도 같이 되감기 위한 스냅샷
@@ -956,7 +974,7 @@ function tourBuild(){
   const hole = document.createElement("div"); hole.className="tour-hole";
   const tip  = document.createElement("div"); tip.className="tour-tip";
   tip.innerHTML = `
-    <div class="meta"><span id="tNum"></span></div>
+    <div class="meta"><span id="tCh"></span><span class="num" id="tNum"></span></div>
     <h3 id="tTitle"></h3>
     <p id="tBody"></p>
     <div class="tour-ctl">
@@ -966,9 +984,14 @@ function tourBuild(){
       <button id="tNext">다음</button>
       <button id="tEnd">닫기</button>
     </div>
-    <div class="tour-bar"><i id="tBar"></i></div>`;
+    <div class="tour-bar" id="tBar"></div>`;
   document.body.append(mask, hole, tip);
   tEls = {mask, hole, tip};
+  // 단계 하나당 칸 하나. 장이 바뀌는 칸 앞에는 틈을 준다
+  $("tBar").innerHTML = TOUR.map((s,i)=>
+    `<button class="seg${s.ch && i ? " br" : ""}" type="button" aria-label="${esc(TOUR_CH[i])} ${i+1}단계로 이동"
+       title="${esc(TOUR_CH[i])} · ${i+1}단계"><i><b></b></i></button>`).join("");
+  [...$("tBar").children].forEach((el,i)=>{ el.onclick = ()=>tourJump(i); });
   $("tPrev").onclick = ()=>tourGo(tIdx-1);
   $("tNext").onclick = ()=>tourGo(tIdx+1);
   $("tPlay").onclick = tourToggle;
@@ -976,19 +999,41 @@ function tourBuild(){
   mask.onclick = e=>{ if(e.target===mask) tourToggle(); };
 }
 
-function tourStart(){
+function tourStart(step){
   tourEnd();
   setMode("free");
   tourBuild();
   tIdx = 0; tPlaying = true; tSnap = [];
   document.body.classList.add("tour-on");
-  tourShow();
   window.addEventListener("resize", tourPlace);
+  if(step > 0) tourJump(step); else tourShow();
 }
 
 function tourGo(i){
   if(i < 0 || i >= TOUR.length){ if(i>=TOUR.length) tourEnd(); return; }
   tIdx = i; tourShow();
+}
+
+// 멀리 건너뛸 때는 지나친 단계의 동작을 한 번에 재생한다.
+// 스냅샷도 같이 채워야 그 뒤에 '이전'으로 되감을 수 있다
+function tourJump(n){
+  n = Math.max(0, Math.min(TOUR.length-1, n));
+  tClear(); cancelAnimationFrame(tRaf);
+  tSnap = [];
+  tJumping = true;
+  try {
+    for(let i=0; i<=n; i++){
+      tSnap[i] = tourCapture();
+      if(i < n && TOUR[i].act) TOUR[i].act();
+    }
+  } finally { tJumping = false; }
+  tIdx = n; tourShow();
+}
+
+// 새로고침·쉬는 시간 복구용. localStorage를 못 쓰므로 주소에 남긴다
+function tourHash(){
+  const h = "#step=" + (tIdx+1);
+  try { history.replaceState(null, "", h); } catch(e) { location.hash = h; }
 }
 
 function tourShow(){
@@ -999,11 +1044,17 @@ function tourShow(){
   else tSnap[tIdx] = tourCapture();
   // 동작이 있는 단계는 다시 실행되므로 그 뒤 단계의 스냅샷은 무효가 된다
   if(s.act) tSnap.length = tIdx + 1;
-  $("tNum").textContent   = `단계 ${tIdx+1} / ${TOUR.length}`;
+  $("tCh").textContent    = TOUR_CH[tIdx];
+  $("tNum").textContent   = `${tIdx+1} / ${TOUR.length}`;
   $("tTitle").textContent = s.title;
   $("tBody").innerHTML    = s.body;
   $("tPrev").disabled = tIdx === 0;
   $("tNext").textContent = tIdx === TOUR.length-1 ? "마치기" : "다음";
+  [...$("tBar").children].forEach((el,i)=>{
+    el.classList.toggle("done", i < tIdx);
+    if(i >= tIdx) el.querySelector("b").style.width = "0";
+  });
+  tourHash();
   tourPlace();
   // 단계 진입 상태로 되돌린 뒤 실행하므로 중복 생성되지 않는다
   if(s.act) tLater(()=>{ s.act(); tourPlace(); }, 550);
@@ -1048,7 +1099,7 @@ function tourPlace(){
 }
 
 function tourTimer(dur){
-  const bar = $("tBar");
+  const bar = $("tBar").children[tIdx].querySelector("b");
   tT0 = tPauseAt = performance.now();
   const tick = now => {
     if(!tPlaying){ tRaf = requestAnimationFrame(tick); return; }
@@ -1073,10 +1124,14 @@ function tourEnd(){
   window.removeEventListener("resize", tourPlace);
   document.body.classList.remove("tour-on");
   document.body.style.removeProperty("--tour-pad");
-  if(tEls){ tEls.mask.remove(); tEls.hole.remove(); tEls.tip.remove(); tEls = null; }
+  if(tEls){
+    tEls.mask.remove(); tEls.hole.remove(); tEls.tip.remove(); tEls = null;
+    try { history.replaceState(null, "", location.pathname + location.search); }
+    catch(e) { /* file:// 등에서 막히면 그냥 둔다 */ }
+  }
 }
 
-$("btnTour").onclick = tourStart;
+$("btnTour").onclick = ()=>tourStart();
 document.addEventListener("keydown", e=>{
   if(!tEls) return;
   if(e.key === "Escape") tourEnd();
@@ -1086,4 +1141,8 @@ document.addEventListener("keydown", e=>{
 });
 
 fresh(); render();
+
+// #step=13 으로 열면 그 단계부터 재개한다 (쉬는 시간 뒤 이어보기)
+const tStep = /^#step=(\d+)$/.exec(location.hash);
+if(tStep) tourStart(+tStep[1] - 1);
 </script>

@@ -134,12 +134,28 @@
     transition:opacity .15s
   }
   .tour-cta:hover{opacity:.85}
-  .tour-mask{position:fixed;inset:0;z-index:50;background:transparent}
+  /* 어둡게 덮는 건 막(mask) 쪽이고, 밝힐 자리는 clip-path로 뚫는다.
+     구멍을 두 개 뚫을 수 있어야 "누른 버튼 + 바뀐 노선도"를 함께 보여줄 수 있다.
+     box-shadow 방식은 겹칠 때마다 어둠이 누적돼 두 곳을 못 밝힌다 */
+  .tour-mask{
+    position:fixed;inset:0;z-index:50;background:rgba(12,18,26,.6);
+    transition:clip-path .35s cubic-bezier(.4,0,.2,1)
+  }
+  .tour-mask.solo{background:transparent}          /* clip-path 미지원 대비 */
   .tour-hole{
     position:fixed;z-index:51;border-radius:14px;pointer-events:none;
-    box-shadow:0 0 0 9999px rgba(12,18,26,.6), 0 0 0 3px var(--head);
+    box-shadow:0 0 0 3px var(--head);
     transition:top .35s cubic-bezier(.4,0,.2,1), left .35s cubic-bezier(.4,0,.2,1),
                width .35s cubic-bezier(.4,0,.2,1), height .35s cubic-bezier(.4,0,.2,1);
+  }
+  .tour-mask.solo ~ .tour-hole{ box-shadow:0 0 0 9999px rgba(12,18,26,.6), 0 0 0 3px var(--head) }
+  /* 함께 밝힌 두 번째 자리는 테두리를 옅게 — 지금 눌린 곳과 구분된다 */
+  .tour-hole2{
+    position:fixed;z-index:51;border-radius:14px;pointer-events:none;opacity:0;
+    box-shadow:0 0 0 2px rgba(230,24,108,.45);
+    transition:top .35s cubic-bezier(.4,0,.2,1), left .35s cubic-bezier(.4,0,.2,1),
+               width .35s cubic-bezier(.4,0,.2,1), height .35s cubic-bezier(.4,0,.2,1),
+               opacity .25s ease;
   }
   .tour-tip{
     position:fixed;z-index:52;left:50%;bottom:22px;transform:translateX(-50%);
@@ -961,7 +977,9 @@ let tSnap = [];              // 단계 진입 시점의 노선도 상태
 // (예약된 커밋이 안내를 닫은 뒤에 실행되던 문제)
 // 건너뛰는 중에는 예약을 기다리지 않고 바로 실행한다.
 // 안 그러면 뒤이은 tClear에 지워져 그 단계의 두 번째 동작이 통째로 빠진다
-let tJumping = false, tSpot = null;   // tSpot: 동작 뒤 스포트라이트를 옮길 대상
+let tJumping = false, tSpot = null;   // tSpot: 동작 뒤 함께 밝힐 대상
+// 구멍 두 개를 뚫으려면 clip-path: path()가 필요하다. 안 되면 예전 한 곳 방식으로 돈다
+const CUTOUT_OK = typeof CSS !== "undefined" && CSS.supports && CSS.supports("clip-path", 'path("M0,0h1v1h-1z")');
 const tLater = (fn, ms) => { if(tJumping) fn(); else tActs.push(setTimeout(fn, ms)); };
 const tClear = () => { tActs.forEach(clearTimeout); tActs = []; };
 
@@ -977,7 +995,9 @@ function tourRestore(k){
 
 function tourBuild(){
   const mask = document.createElement("div"); mask.className="tour-mask";
+  if(!CUTOUT_OK) mask.classList.add("solo");
   const hole = document.createElement("div"); hole.className="tour-hole";
+  const hole2 = document.createElement("div"); hole2.className="tour-hole2";
   const tip  = document.createElement("div"); tip.className="tour-tip";
   tip.innerHTML = `
     <div class="meta"><span id="tCh"></span><span class="num" id="tNum"></span></div>
@@ -991,8 +1011,8 @@ function tourBuild(){
       <button id="tEnd">닫기</button>
     </div>
     <div class="tour-bar" id="tBar"></div>`;
-  document.body.append(mask, hole, tip);
-  tEls = {mask, hole, tip};
+  document.body.append(mask, hole, hole2, tip);
+  tEls = {mask, hole, hole2, tip};
   // 단계 하나당 칸 하나. 장이 바뀌는 칸 앞에는 틈을 준다
   $("tBar").innerHTML = TOUR.map((s,i)=>
     `<button class="seg${s.ch && i ? " br" : ""}" type="button" aria-label="${esc(TOUR_CH[i])} ${i+1}단계로 이동"
@@ -1085,12 +1105,17 @@ function tourPlace(){
   if(wide) document.body.style.removeProperty("--tour-pad");
   else      document.body.style.setProperty("--tour-pad", (tipH + 60) + "px");
 
-  const sel = tSpot || s.sel;
-  const el = sel ? document.querySelector(sel) : null;
-  if(el){
+  // 지금 눌린 곳(주)과, 동작 뒤 함께 밝힐 노선도(부).
+  // 좁은 화면은 조작판이 노선도 아래로 내려가 둘이 한 화면에 못 들어온다.
+  // 그때는 예전처럼 한 곳만 비추되 결과(노선도) 쪽을 보여준다
+  const twoUp = CUTOUT_OK && wide;
+  const el  = s.sel ? document.querySelector(s.sel) : null;
+  const el2 = (tSpot && twoUp && tSpot !== s.sel) ? document.querySelector(tSpot) : null;
+  const solo = (!twoUp && tSpot) ? document.querySelector(tSpot) : el;
+  if(solo){
     // 넓은 화면은 화면 안에만 들어오면 되고, 좁은 화면은 말풍선 위까지만 허용된다
     const top = 12, bottom = wide ? innerHeight - 12 : innerHeight - tipH - 22 - 12;
-    const r0 = el.getBoundingClientRect();
+    const r0 = solo.getBoundingClientRect();
     if(r0.bottom > bottom)   scrollBy(0, Math.min(r0.bottom - bottom, r0.top - top));
     else if(r0.top < top)    scrollBy(0, r0.top - top);
   }
@@ -1103,13 +1128,24 @@ function tourPlace(){
   } else {
     tEls.tip.style.top = "auto"; tEls.tip.style.bottom = "22px"; tEls.tip.style.left = "50%";
   }
-  if(!el){ tEls.hole.style.opacity = 0; return; }
-  tEls.hole.style.opacity = 1;
-  const r = el.getBoundingClientRect(), p = 8;
-  Object.assign(tEls.hole.style, {
-    top:(r.top-p)+"px", left:(r.left-p)+"px",
-    width:(r.width+p*2)+"px", height:(r.height+p*2)+"px"
-  });
+  const P = 8;
+  const box = e => { const r = e.getBoundingClientRect();
+    return { x:r.left-P, y:r.top-P, w:r.width+P*2, h:r.height+P*2 }; };
+  const put = (node, b) => { if(!b){ node.style.opacity = 0; return; }
+    node.style.opacity = 1;
+    Object.assign(node.style, { top:b.y+"px", left:b.x+"px", width:b.w+"px", height:b.h+"px" }); };
+
+  const b1 = solo ? box(solo) : null, b2 = el2 ? box(el2) : null;
+  put(tEls.hole, b1);
+  put(tEls.hole2, b2);
+
+  if(CUTOUT_OK){
+    // 화면 전체에서 밝힐 사각형들을 빼낸다 (evenodd)
+    const cut = b => b ? ` M${b.x},${b.y}h${b.w}v${b.h}h${-b.w}z` : "";
+    tEls.mask.style.clipPath = b1
+      ? `path(evenodd,"M0,0h${innerWidth}v${innerHeight}h${-innerWidth}z${cut(b1)}${cut(b2)}")`
+      : "none";
+  }
 }
 
 function tourTimer(dur){
@@ -1139,7 +1175,7 @@ function tourEnd(){
   document.body.classList.remove("tour-on");
   document.body.style.removeProperty("--tour-pad");
   if(tEls){
-    tEls.mask.remove(); tEls.hole.remove(); tEls.tip.remove(); tEls = null;
+    tEls.mask.remove(); tEls.hole.remove(); tEls.hole2.remove(); tEls.tip.remove(); tEls = null;
     try { history.replaceState(null, "", location.pathname + location.search); }
     catch(e) { /* file:// 등에서 막히면 그냥 둔다 */ }
   }

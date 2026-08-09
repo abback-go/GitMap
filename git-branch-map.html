@@ -1,0 +1,960 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Git 노선도 — 브랜치가 어떻게 갈라지고 만나는지 눈으로 보기</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
+<style>
+  :root{
+    --paper:#EDF0F5;
+    --paper-2:#FFFFFF;
+    --ink:#141C26;
+    --ink-soft:#5B6876;
+    --rule:#D3DAE3;
+    --head:#E6186C;
+    --shadow:0 1px 2px rgba(20,28,38,.06), 0 8px 24px rgba(20,28,38,.07);
+    --mono: ui-monospace, "SFMono-Regular", "Cascadia Mono", Consolas, "D2Coding", monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    font-family:"Pretendard Variable",Pretendard,"Malgun Gothic",system-ui,sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1240px;margin:0 auto;padding:24px 20px 48px}
+
+  header.top{
+    display:flex;align-items:flex-end;justify-content:space-between;
+    gap:20px;flex-wrap:wrap;
+    padding-bottom:14px;margin-bottom:18px;
+    border-bottom:2px solid var(--ink);
+  }
+  h1{
+    margin:0;font-size:30px;font-weight:800;letter-spacing:-.03em;line-height:1.1;
+  }
+  h1 .sub{display:block;font-size:13px;font-weight:500;letter-spacing:0;color:var(--ink-soft);margin-top:7px}
+  .modes{display:flex;gap:6px}
+  .modes button{
+    font-family:inherit;font-size:13px;font-weight:600;
+    padding:8px 14px;border-radius:999px;cursor:pointer;
+    border:1.5px solid var(--rule);background:var(--paper-2);color:var(--ink-soft);
+    transition:all .15s;
+  }
+  .modes button:hover{border-color:var(--ink-soft)}
+  .modes button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
+
+  .grid{display:grid;grid-template-columns:1fr 330px;gap:18px;align-items:start}
+  @media (max-width:900px){ .grid{grid-template-columns:1fr} }
+
+  .panel{background:var(--paper-2);border:1.5px solid var(--rule);border-radius:14px;box-shadow:var(--shadow)}
+
+  /* ── 노선도 ── */
+  .map{padding:6px 6px 0;overflow:hidden}
+  .map-scroll{overflow-x:auto;overflow-y:hidden}
+  svg{display:block}
+  .legend{
+    display:flex;gap:16px;flex-wrap:wrap;align-items:center;
+    padding:10px 14px;border-top:1.5px dashed var(--rule);margin-top:4px;
+    font-size:12px;color:var(--ink-soft)
+  }
+  .legend b{color:var(--ink);font-weight:700}
+  .lg{display:flex;align-items:center;gap:6px}
+  .lg i{width:14px;height:14px;border-radius:50%;border:3px solid var(--ink-soft);background:#fff;display:inline-block}
+  .lg i.transfer{border-color:var(--ink);box-shadow:inset 0 0 0 2px #fff, inset 0 0 0 4px var(--ink)}
+  .lg i.ghost{border-style:dashed;opacity:.45}
+  .lg i.headmark{width:22px;height:12px;border:none;border-radius:999px;background:var(--head)}
+  .lg i.remote{width:22px;height:12px;border:2px solid #5B6876;border-radius:999px;background:#fff}
+
+  /* ── 조작판 ── */
+  .console{padding:16px;display:flex;flex-direction:column;gap:14px}
+  .console h2{
+    margin:0;font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink-soft)
+  }
+  .row{display:flex;gap:6px}
+  .row > *{min-width:0}
+  input[type=text],select{
+    flex:1;font-family:inherit;font-size:13px;padding:8px 10px;
+    border:1.5px solid var(--rule);border-radius:8px;background:var(--paper);color:var(--ink)
+  }
+  input:focus,select:focus,button:focus-visible{outline:2.5px solid var(--head);outline-offset:1px}
+  .act{
+    font-family:inherit;font-size:13px;font-weight:700;white-space:nowrap;
+    padding:8px 12px;border-radius:8px;cursor:pointer;
+    border:1.5px solid var(--ink);background:var(--ink);color:#fff;transition:transform .1s, opacity .15s
+  }
+  .act:hover{opacity:.85}
+  .act:active{transform:translateY(1px)}
+  .act.ghost{background:transparent;color:var(--ink);border-color:var(--rule)}
+  .act.ghost:hover{border-color:var(--ink)}
+
+  .now{
+    font-size:13px;padding:10px 12px;border-radius:8px;
+    background:var(--paper);border:1.5px solid var(--rule)
+  }
+  .now .k{font-size:11px;letter-spacing:.1em;color:var(--ink-soft);font-weight:700}
+  .now .v{font-family:var(--mono);font-size:15px;font-weight:700;margin-top:3px}
+
+  .note{
+    font-size:13px;line-height:1.55;padding:11px 12px;border-radius:8px;
+    background:#FFF4F8;border:1.5px solid #FAD3E1;color:#7A1038;min-height:44px
+  }
+  .note code{font-family:var(--mono);font-size:12px;background:#fff;padding:1px 5px;border-radius:4px}
+
+  .log{
+    max-height:210px;overflow:auto;font-family:var(--mono);font-size:12px;line-height:1.7;
+    background:var(--paper);border:1.5px solid var(--rule);border-radius:8px;padding:9px 11px
+  }
+  .log div{white-space:pre-wrap;word-break:break-all}
+  .log .c{color:var(--ink)}
+  .log .c::before,.log .e::before{content:"$ ";color:var(--head);font-weight:700}
+  .log .e{color:#B02A37}
+  .log .n{color:var(--ink-soft)}
+  .log .empty{color:var(--ink-soft);font-family:inherit}
+
+  .steps{font-size:13px;line-height:1.55}
+  .steps .cmd{font-family:var(--mono);font-size:12.5px;font-weight:700;display:block;margin-bottom:5px}
+  .steps .done{color:var(--ink-soft)}
+
+  /* ── 자동 안내 ── */
+  .tour-cta{
+    font-family:inherit;font-size:13px;font-weight:800;
+    padding:8px 16px;border-radius:999px;cursor:pointer;
+    border:1.5px solid var(--head);background:var(--head);color:#fff;
+    transition:opacity .15s
+  }
+  .tour-cta:hover{opacity:.85}
+  .tour-mask{position:fixed;inset:0;z-index:50;background:transparent}
+  .tour-hole{
+    position:fixed;z-index:51;border-radius:14px;pointer-events:none;
+    box-shadow:0 0 0 9999px rgba(12,18,26,.6), 0 0 0 3px var(--head);
+    transition:top .35s cubic-bezier(.4,0,.2,1), left .35s cubic-bezier(.4,0,.2,1),
+               width .35s cubic-bezier(.4,0,.2,1), height .35s cubic-bezier(.4,0,.2,1);
+  }
+  .tour-tip{
+    position:fixed;z-index:52;left:50%;bottom:22px;transform:translateX(-50%);
+    width:min(600px,calc(100vw - 28px));
+    background:#fff;border-radius:16px;padding:16px 18px 12px;
+    box-shadow:0 18px 50px rgba(0,0,0,.32);
+    transition:top .25s ease;
+  }
+  /* 좁은 화면은 말풍선을 화면 아래 고정하므로, 강조 대상을 그 위로
+     끌어올릴 수 있도록 높이만큼 페이지 여백을 확보한다 */
+  body.tour-on .wrap{padding-bottom:var(--tour-pad,48px)}
+  .tour-tip .meta{
+    display:flex;align-items:center;gap:8px;
+    font-size:11px;font-weight:800;letter-spacing:.1em;color:var(--head);margin-bottom:6px
+  }
+  .tour-tip h3{margin:0 0 6px;font-size:17px;font-weight:800;letter-spacing:-.02em}
+  .tour-tip p{margin:0;font-size:14px;line-height:1.65;color:#33404E}
+  .tour-tip p code{font-family:var(--mono);font-size:12.5px;background:var(--paper);padding:1px 5px;border-radius:4px}
+  .tour-tip p b{color:var(--ink)}
+  .tour-ctl{display:flex;gap:6px;align-items:center;margin-top:13px}
+  .tour-ctl button{
+    font-family:inherit;font-size:12.5px;font-weight:700;padding:7px 13px;border-radius:8px;cursor:pointer;
+    border:1.5px solid var(--rule);background:#fff;color:var(--ink)
+  }
+  .tour-ctl button:hover{border-color:var(--ink)}
+  .tour-ctl button.pri{background:var(--ink);border-color:var(--ink);color:#fff}
+  .tour-ctl .sp{flex:1}
+  .tour-bar{height:3px;background:var(--rule);border-radius:2px;margin-top:11px;overflow:hidden}
+  .tour-bar i{display:block;height:100%;background:var(--head);width:0;border-radius:2px}
+
+  /* 애니메이션 */
+  @keyframes pop{from{opacity:0;transform:scale(.3)}to{opacity:1;transform:scale(1)}}
+  @keyframes draw{from{stroke-dashoffset:var(--len)}to{stroke-dashoffset:0}}
+  .enter{animation:pop .34s cubic-bezier(.34,1.56,.64,1) both}
+  .edge-enter{animation:draw .4s ease-out both}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <h1>Git 노선도
+      <span class="sub">커밋은 역, 브랜치는 노선, 병합 커밋은 환승역입니다. 버튼을 눌러 선로가 어떻게 깔리는지 확인하세요.</span>
+    </h1>
+    <div class="modes" id="modes">
+      <button class="tour-cta" id="btnTour" style="margin-right:8px">▶ 자동 안내</button>
+      <button data-mode="free" aria-pressed="true">자유 모드</button>
+      <button data-mode="merge" aria-pressed="false">시나리오 · Merge</button>
+      <button data-mode="rebase" aria-pressed="false">시나리오 · Rebase</button>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="panel map">
+      <div class="map-scroll"><svg id="canvas" role="img" aria-label="Git 커밋 그래프"></svg></div>
+      <div class="legend">
+        <span class="lg"><i></i> <b>커밋</b> 하나의 역</span>
+        <span class="lg"><i class="transfer"></i> <b>병합 커밋</b> 두 노선이 만나는 환승역</span>
+        <span class="lg"><i class="ghost"></i> <b>버려진 커밋</b> rebase 후 남은 옛 선로</span>
+        <span class="lg"><i class="headmark"></i> <b>HEAD</b> 지금 올라타 있는 브랜치 이름표를 가리킴</span>
+        <span class="lg"><i class="remote"></i> <b>origin/main</b> 원격 저장소(팀 공용)가 가리키는 역</span>
+      </div>
+    </div>
+
+    <div class="panel console">
+      <div class="now">
+        <div class="k">현재 위치 (HEAD)</div>
+        <div class="v" id="nowBranch">main</div>
+      </div>
+
+      <div class="note" id="note">브랜치를 만들고 커밋해보세요.</div>
+
+      <div id="freePanel">
+        <h2>명령</h2>
+        <div class="row" style="margin:8px 0 6px">
+          <input type="text" id="msg" placeholder="커밋 메시지" value="플레이어 이동 구현">
+          <button class="act" id="btnCommit">커밋</button>
+        </div>
+        <div class="row" style="margin-bottom:6px">
+          <input type="text" id="bname" placeholder="새 브랜치 이름" value="feature-jump">
+          <button class="act" id="btnBranch">브랜치 + 이동</button>
+        </div>
+        <div class="row" style="margin-bottom:6px">
+          <select id="selSwitch"></select>
+          <button class="act ghost" id="btnSwitch">이동</button>
+        </div>
+        <div class="row" style="margin-bottom:6px">
+          <select id="selMerge"></select>
+          <button class="act ghost" id="btnMerge">병합</button>
+        </div>
+        <div class="row" style="margin-bottom:10px">
+          <select id="selRebase"></select>
+          <button class="act ghost" id="btnRebase">리베이스</button>
+        </div>
+        <h2 style="margin-top:14px">원격 저장소 (origin)</h2>
+        <div class="row" style="margin:8px 0 6px">
+          <button class="act ghost" id="btnTeam" style="flex:1">팀원이 커밋</button>
+        </div>
+        <div class="row" style="margin-bottom:10px">
+          <button class="act ghost" id="btnPull" style="flex:1">받아오기 · pull</button>
+          <button class="act ghost" id="btnPush" style="flex:1">올리기 · push</button>
+        </div>
+
+        <div class="row">
+          <button class="act ghost" id="btnUndo" style="flex:1">한 단계 되돌리기</button>
+          <button class="act ghost" id="btnReset" style="flex:1">처음부터</button>
+        </div>
+      </div>
+
+      <div id="stepPanel" style="display:none">
+        <h2>진행 순서</h2>
+        <div class="steps" id="stepList" style="margin:8px 0 10px"></div>
+        <div class="row">
+          <button class="act" id="btnNext" style="flex:2">다음 단계</button>
+          <button class="act ghost" id="btnRestart" style="flex:1">다시</button>
+        </div>
+      </div>
+
+      <div>
+        <h2>실행한 명령</h2>
+        <div class="log" id="log" style="margin-top:8px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+const COLORS = ["#0052A4","#EF7C1C","#00A84D","#996CAC","#00A5DE","#B5651D"];
+const COL_W = 112, ROW_H0 = 104, PAD_X = 66, PAD_Y = 66, LBL_GAP = 23;
+// 원격 저장소. main 하나만 추적한다 (실제 git도 새 로컬 브랜치는 push 전까지 원격에 없다)
+const REMOTE = "origin/main", REMOTE_COLOR = "#5B6876";
+
+let S, undoStack = [], seenNodes = new Set(), seenEdges = new Set();
+let mode = "free", scenario = null, stepIdx = 0;
+
+const $ = id => document.getElementById(id);
+const clone = o => JSON.parse(JSON.stringify(o));
+// 커밋 메시지·브랜치 이름은 사용자가 입력한다. HTML로 넣기 전에 반드시 통과시킬 것.
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* ───────── 상태 ───────── */
+// withRemote=false면 원격 없이 시작한다 (시나리오 모드는 원격을 다루지 않는다)
+function fresh(withRemote){
+  S = { commits:{}, order:[], branches:{}, head:"main", laneNext:0, log:[] };
+  makeBranch("main");
+  doCommit("최초 커밋");
+  // 원격은 같은 역에서 출발한다. lane 번호를 새로 쓰지 않아 로컬 브랜치 색이 밀리지 않는다
+  // 선로 색은 main과 같게 둔다("노선 = 색" 규칙 유지). 원격임은 이름표 모양으로만 구분
+  if(withRemote !== false)
+    S.branches[REMOTE] = { name:REMOTE, head:S.branches.main.head,
+                           lane:S.branches.main.lane, color:S.branches.main.color, remote:true };
+  S.log = [];
+  undoStack = [];
+}
+function hash(){
+  let h; do { h = Math.random().toString(16).slice(2,9); } while (S.commits[h]);
+  return h;
+}
+function makeBranch(name){
+  S.branches[name] = { name, head:null, lane:S.laneNext, color:COLORS[S.laneNext % COLORS.length] };
+  S.laneNext++;
+}
+const cur = () => S.branches[S.head];
+function snap(){ undoStack.push(clone(S)); if(undoStack.length>60) undoStack.shift(); }
+
+function ancestors(id){
+  const out = new Set(); if(!id) return out;
+  const stack=[id];
+  while(stack.length){
+    const x = stack.pop();
+    if(!x || out.has(x)) continue;
+    out.add(x);
+    (S.commits[x].parents||[]).forEach(p=>stack.push(p));
+  }
+  return out;
+}
+const isAncestor = (a,b) => !!a && ancestors(b).has(a);
+
+/* ───────── 명령 ───────── */
+function doCommit(msg){
+  const b = cur();
+  // 지금 서 있는 역에서 같은 줄로 이미 선로가 뻗어 있으면(원격이 앞서 나간 경우 등)
+  // 새 줄로 갈라진다. 색은 유지해서 같은 노선임을 보여준다
+  if(b.head && S.order.some(id => S.commits[id].lane===b.lane && S.commits[id].parents.includes(b.head)))
+    b.lane = S.laneNext++;
+  const id = hash();
+  S.commits[id] = { id, parents: b.head?[b.head]:[], lane:b.lane, msg, color:b.color };
+  S.order.push(id);
+  b.head = id;
+  return id;
+}
+function cmdCommit(msg){
+  msg = (msg || "").trim() || "작업 내용 저장";
+  snap();
+  const id = doCommit(msg);
+  log(`git commit -m "${msg}"`);
+  say(`<b>${esc(S.head)}</b> 노선 끝에 역 <code>${id}</code> 이(가) 새로 생겼습니다. HEAD도 함께 앞으로 이동합니다.`);
+  render();
+}
+function cmdBranch(name){
+  if(!name) return say("브랜치 이름을 입력하세요.");
+  if(/[\s~^:?*\[\\]/.test(name) || name.includes("..") || /^[-\/.]|[\/.]$/.test(name))
+    return say("브랜치 이름에 공백이나 <code>~ ^ : ? * [ \\ ..</code> 는 쓸 수 없습니다. 실제 git도 거절합니다.");
+  if(S.branches[name]) return say(`<b>${esc(name)}</b> 브랜치는 이미 있습니다.`);
+  snap();
+  const base = cur().head;
+  makeBranch(name);
+  S.branches[name].head = base;
+  S.head = name;
+  log(`git switch -c ${name}`);
+  say(`<b>${esc(name)}</b> 노선이 <code>${base}</code> 역에서 갈라졌습니다. 아직 역은 없고 출발점만 공유합니다.`);
+  render();
+}
+function cmdSwitch(name){
+  if(name===S.head) return say(`이미 <b>${esc(name)}</b> 노선에 있습니다.`);
+  if(!S.branches[name]) return;
+  snap();
+  S.head = name;
+  log(`git switch ${name}`);
+  say(`HEAD가 <b>${esc(name)}</b> 노선으로 옮겨졌습니다. 이제 커밋하면 이 노선 끝에 붙습니다.`);
+  render();
+}
+function cmdMerge(name){
+  const t = S.branches[name], c = cur();
+  if(!t || name===S.head) return say("현재 브랜치와 다른 브랜치를 골라주세요.");
+  if(!t.head) return say(`<b>${esc(name)}</b>에는 커밋이 없습니다.`);
+  if(isAncestor(t.head, c.head)) { log(`git merge ${name}`); say(`이미 <b>${esc(name)}</b>의 내용을 전부 갖고 있어서 아무 일도 일어나지 않습니다. (Already up to date)`); return; }
+  snap();
+  if(isAncestor(c.head, t.head)){
+    c.head = t.head;
+    log(`git merge ${name}   # fast-forward`);
+    say(`<b>${esc(S.head)}</b>가 갈라진 뒤 한 번도 커밋하지 않았기 때문에, 새 역을 만들지 않고 <b>${esc(name)}</b> 끝까지 그냥 미끄러져 갑니다. 이걸 <code>fast-forward</code>라고 합니다.`);
+  } else {
+    const id = hash();
+    S.commits[id] = { id, parents:[c.head, t.head], lane:c.lane, msg:`Merge ${name}`, color:c.color, merge:true };
+    S.order.push(id); c.head = id;
+    log(`git merge ${name}`);
+    say(`양쪽 모두 새 역이 있어서 <b>환승역</b> <code>${id}</code> 이(가) 만들어졌습니다. 부모가 둘인 유일한 커밋이며, 갈라졌던 기록이 그대로 남습니다.`);
+  }
+  render();
+}
+function cmdRebase(name){
+  const t = S.branches[name], c = cur();
+  if(!t || name===S.head) return say("현재 브랜치와 다른 브랜치를 골라주세요.");
+  if(!t.head) return say(`<b>${esc(name)}</b>에는 커밋이 없습니다.`);
+  if(isAncestor(t.head, c.head)) return say(`이미 <b>${esc(name)}</b> 위에 얹혀 있어서 옮길 게 없습니다.`);
+  const base = ancestors(t.head), mine = ancestors(c.head);
+  const only = S.order.filter(id => mine.has(id) && !base.has(id));
+  // 실제 git rebase는 병합 커밋을 다시 붙이지 않고 흘려보낸다(--rebase-merges 없을 때).
+  const replay = only.filter(id => !S.commits[id].merge);
+  const dropped = only.length - replay.length;
+  if(!replay.length){
+    snap(); c.head = t.head; log(`git rebase ${name}`);
+    say(dropped
+      ? `옮길 일반 커밋이 없습니다. 병합 커밋 ${dropped}개는 rebase가 <b>다시 붙이지 않고 버립니다</b>. 위치만 이동했습니다.`
+      : "옮길 커밋이 없어 위치만 이동했습니다.");
+    render(); return;
+  }
+  snap();
+  let parent = t.head; const made = [];
+  replay.forEach(old=>{
+    const id = hash();
+    S.commits[id] = { id, parents:[parent], lane:c.lane, msg:S.commits[old].msg, color:c.color, from:old };
+    S.order.push(id); parent = id; made.push(id);
+  });
+  c.head = parent;
+  log(`git rebase ${name}`);
+  say(`내 커밋 ${replay.length}개를 <b>${esc(name)}</b> 끝에 <b>복사</b>해 다시 붙였습니다. 해시가 <code>${replay[0]}</code> → <code>${made[0]}</code> 로 바뀐 점을 보세요. 원래 역들은 점선으로 남아 곧 사라집니다.`
+    + (dropped ? ` 병합 커밋 ${dropped}개는 <b>따라오지 않습니다</b> — rebase는 갈라졌던 기록을 한 줄로 펴기 때문에 환승역이 사라집니다.` : ""));
+  render();
+}
+/* ── 원격 저장소 ── */
+// 원격을 추적하는 건 main 하나뿐이다
+function remoteGuard(){
+  if(!S.branches[REMOTE]){ say("이 모드에서는 원격 저장소를 다루지 않습니다."); return false; }
+  if(S.head === "main") return true;
+  say(`원격을 추적하는 브랜치는 <b>main</b> 하나입니다. main으로 이동한 뒤 사용하세요.`);
+  return false;
+}
+function cmdTeamCommit(msg){
+  if(!S.branches[REMOTE]) return say("이 모드에서는 원격 저장소를 다루지 않습니다.");
+  msg = (msg || "").trim() || "팀원 작업";
+  snap();
+  // 원격 이름표 위치에서 커밋한 것처럼 처리한다. 내 브랜치는 움직이지 않는다
+  const back = S.head; S.head = REMOTE;
+  const id = doCommit(msg);
+  S.head = back;
+  log(`# 팀원이 원격에 "${msg}" 커밋을 올렸습니다`, "n");
+  say(`원격 저장소에 역 <code>${id}</code> 이(가) 생겼습니다. <b>${esc(back)}</b>는 아직 그대로입니다 — 받아오기 전에는 내 저장소에 반영되지 않습니다.`);
+  render();
+}
+function cmdPull(){
+  if(!remoteGuard()) return;
+  const r = S.branches[REMOTE], c = S.branches.main;
+  if(r.head === c.head) { log(`git pull`); say("이미 원격과 같은 위치입니다. (Already up to date)"); return; }
+  if(isAncestor(r.head, c.head)) { log(`git pull`); say("원격에 새 역이 없습니다. 내 쪽이 앞서 있으니 <b>올리기</b>를 쓰세요."); return; }
+  snap();
+  if(isAncestor(c.head, r.head)){
+    c.head = r.head; c.lane = S.commits[r.head].lane;
+    log(`git pull   # fast-forward`);
+    say(`받아온 커밋을 main 끝에 이어 붙일 것도 없이 <b>그냥 미끄러져</b> 따라붙었습니다. <code>fast-forward</code>입니다.`);
+  } else {
+    const id = hash();
+    S.commits[id] = { id, parents:[c.head, r.head], lane:c.lane, msg:`Merge ${REMOTE}`, color:c.color, merge:true };
+    S.order.push(id); c.head = id;
+    log(`git pull   # merge`);
+    say(`내 main과 원격이 <b>서로 다르게</b> 뻗어 있어서 <b>환승역</b>이 생겼습니다. <code>git pull</code>은 <code>git fetch</code> + <code>git merge</code>입니다.`);
+  }
+  render();
+}
+function cmdPush(){
+  if(!remoteGuard()) return;
+  const r = S.branches[REMOTE], c = S.branches.main;
+  if(r.head === c.head) { log(`git push`); say("원격과 같은 위치라 올릴 것이 없습니다."); return; }
+  if(!isAncestor(r.head, c.head)){
+    log(`git push   # rejected (non-fast-forward)`, "e");
+    say(`원격에 <b>내가 모르는 커밋</b>이 있어서 거절됩니다. 먼저 <b>받아오기</b>로 합친 뒤 다시 올리세요.`);
+    render(); return;
+  }
+  snap();
+  r.head = c.head; r.lane = c.lane;
+  log(`git push`);
+  say(`내 커밋을 원격에 올렸습니다. <code>${REMOTE}</code> 이름표가 main과 같은 역으로 따라왔습니다.`);
+  render();
+}
+
+function cmdUndo(){
+  if(!undoStack.length) return say("되돌릴 단계가 없습니다.");
+  S = undoStack.pop();
+  say("한 단계 되돌렸습니다.");
+  render();
+}
+
+// k: 없으면 실행한 명령, "e" 거절/오류, "n" 명령이 아닌 설명 줄
+function log(t, k){ S.log.push({t, k}); }
+function say(html){ $("note").innerHTML = html; }
+
+/* ───────── 그리기 ───────── */
+function render(){
+  const reach = new Set();
+  Object.values(S.branches).forEach(b => ancestors(b.head).forEach(x=>reach.add(x)));
+
+  const depth = {};
+  S.order.forEach(id=>{
+    const p = S.commits[id].parents;
+    depth[id] = p.length ? Math.max(...p.map(x=>depth[x]??0)) + 1 : 0;
+  });
+
+  // 가로줄 배치: 버려진 커밋은 살아있는 노선 아래 별도 줄에 둔다
+  // (rebase 후 옛 역이 새 역과 같은 자리에 겹쳐 가려지던 문제)
+  const rowKey = id => (reach.has(id) ? "L" : "G") + S.commits[id].lane;
+  const rows = [];
+  S.order.forEach(id=>{ const k = rowKey(id); if(!rows.includes(k)) rows.push(k); });
+  rows.sort((a,b)=> (a[0]==="G") - (b[0]==="G") || (+a.slice(1)) - (+b.slice(1)));
+  const rowOf = {}; rows.forEach((k,i)=>rowOf[k]=i);
+  const rowIdx = id => rowOf[rowKey(id)];
+
+  // 커밋별 브랜치 이름표 묶음 (HEAD → 이름표 → 커밋 3단 구조에 쓰인다)
+  const labels = {};
+  Object.values(S.branches).forEach(b=>{ if(b.head) (labels[b.head] = labels[b.head] || []).push(b); });
+  const lblW = b => b.name.length*7.6 + 20;                       // 이름표 알약 너비
+  const lblExt = b => lblW(b) + (b.name===S.head ? 64 : 8);       // HEAD 뱃지까지 포함한 오른쪽 끝
+  const lblRight = list => 26 + Math.max(...list.map(lblExt));
+  const stackMax = Math.max(1, ...Object.values(labels).map(l=>l.length));
+  const ROW_H = Math.max(ROW_H0, (stackMax-1)*LBL_GAP + 68);      // 이름표가 아래 lane 글자와 겹치지 않게
+
+  // 열 간격: 이름표 오른쪽에 같은 줄의 다음 역이 오면 그만큼 벌린다
+  const maxDepth = Math.max(0, ...Object.values(depth));
+  // 부모-자식 여부와 상관없이, 같은 줄 다음 칸에 역이 있으면 그만큼 벌린다
+  const taken = new Set(S.order.map(id => rowIdx(id)+":"+depth[id]));
+  const gapAt = [];
+  Object.keys(labels).forEach(cid=>{
+    if(!taken.has(rowIdx(cid)+":"+(depth[cid]+1))) return;
+    const d = depth[cid];
+    gapAt[d] = Math.max(gapAt[d]||0, lblRight(labels[cid]) + 37);
+  });
+  const colX = []; let colCur = PAD_X;
+  for(let d=0; d<=maxDepth; d++){ colX[d] = colCur; colCur += Math.max(COL_W, gapAt[d]||0); }
+
+  const pos = {};
+  S.order.forEach(id=>{
+    pos[id] = { x: colX[depth[id]], y: PAD_Y + rowIdx(id)*ROW_H };
+  });
+
+  let rightEnd = Math.max(...Object.values(pos).map(p=>p.x), PAD_X) + 60;
+  Object.keys(labels).forEach(cid=>{ rightEnd = Math.max(rightEnd, pos[cid].x + lblRight(labels[cid])); });
+  const maxX = rightEnd + 18;
+  const maxY = Math.max(...Object.values(pos).map(p=>p.y), PAD_Y)
+             + Math.max(64, (stackMax-1)*LBL_GAP + 32);
+  const svg = $("canvas");
+  svg.setAttribute("viewBox", `0 0 ${maxX} ${maxY}`);
+  svg.setAttribute("width", maxX);
+  svg.setAttribute("height", maxY);
+  svg.innerHTML = "";
+
+  const NS = "http://www.w3.org/2000/svg";
+  const el = (t,a)=>{ const n=document.createElementNS(NS,t); for(const k in a) n.setAttribute(k,a[k]); return n; };
+
+  // 노선 이름표 (왼쪽 여백)
+  rows.forEach((k,i)=>{
+    const y = PAD_Y + i*ROW_H;
+    svg.appendChild(el("line",{x1:0,y1:y,x2:maxX,y2:y,stroke:"#E4E9EF","stroke-width":1}));
+  });
+
+  // 선로
+  S.order.forEach(id=>{
+    const c = S.commits[id], live = reach.has(id);
+    c.parents.forEach((pid,i)=>{
+      const a = pos[pid], b = pos[id];
+      if(!a) return;
+      const d = (a.y===b.y)
+        ? `M ${a.x} ${a.y} L ${b.x} ${b.y}`
+        : `M ${a.x} ${a.y} C ${a.x+COL_W*0.55} ${a.y}, ${b.x-COL_W*0.55} ${b.y}, ${b.x} ${b.y}`;
+      const key = pid+">"+id;
+      const path = el("path",{
+        d, fill:"none",
+        stroke: live ? (i===1 ? S.commits[pid].color : c.color) : "#AEB8C4",
+        "stroke-width": live ? 7 : 3,
+        "stroke-linecap":"round",
+        opacity: live ? 1 : .4,
+        "stroke-dasharray": live ? "none" : "6 6"
+      });
+      if(live && !seenEdges.has(key)){
+        const L = 400;
+        path.classList.add("edge-enter");
+        path.style.setProperty("--len", L);
+        path.style.strokeDasharray = L;
+        path.addEventListener("animationend", ()=>{ path.style.strokeDasharray = "none"; });
+      }
+      seenEdges.add(key);
+      svg.appendChild(path);
+    });
+  });
+
+  // 역
+  S.order.forEach(id=>{
+    const c = S.commits[id], p = pos[id], live = reach.has(id);
+    const g = el("g",{ transform:`translate(${p.x},${p.y})` });
+    const gi = el("g",{ style:"transform-box:fill-box;transform-origin:center" });
+    if(live && !seenNodes.has(id)) gi.classList.add("enter");
+    seenNodes.add(id);
+    g.appendChild(gi);
+
+    gi.appendChild(el("circle",{ r:15, fill:"#fff",
+      stroke: live ? c.color : "#AEB8C4",
+      "stroke-width": c.merge ? 4 : 5,
+      opacity: live ? 1 : .45,
+      "stroke-dasharray": live ? "none" : "4 4" }));
+    if(c.merge) gi.appendChild(el("circle",{ r:7, fill: live ? c.color : "#AEB8C4", opacity: live ? 1 : .45 }));
+
+    const h = el("text",{ y:-24, "text-anchor":"middle",
+      "font-family":"ui-monospace,Consolas,monospace","font-size":11,"font-weight":700,
+      fill: live ? "#141C26" : "#AEB8C4" });
+    h.textContent = id;
+    g.appendChild(h);
+
+    const m = el("text",{ y:-42, "text-anchor":"middle","font-size":11.5,
+      fill: live ? "#5B6876" : "#BAC3CD" });
+    m.textContent = c.msg.length>13 ? c.msg.slice(0,12)+"…" : c.msg;
+    g.appendChild(m);
+    svg.appendChild(g);
+  });
+
+  // 브랜치 이름표 + HEAD  (HEAD → 브랜치 이름표 → 커밋)
+  Object.keys(labels).forEach(cid=>{
+    const list = labels[cid], p = pos[cid];
+    const g = el("g",{ transform:`translate(${p.x},${p.y})` });
+    if(list.length>1)
+      g.appendChild(el("line",{ x1:20, y1:0, x2:20, y2:(list.length-1)*LBL_GAP,
+        stroke:"#C4CDD8","stroke-width":2 }));
+    list.forEach((b,i)=>{
+      const y = i*LBL_GAP, w = lblW(b), on = b.name===S.head;
+      // 이름표 → 커밋 연결선
+      g.appendChild(el("line",{ x1:i?20:15, y1:y, x2:26, y2:y, stroke:"#C4CDD8","stroke-width":2 }));
+      // 선로 위에 얹혀도 읽히도록 흰 바탕을 깐다
+      g.appendChild(el("rect",{ x:23, y:y-13, width:w+6, height:26, rx:13, fill:"#fff" }));
+      // 원격 이름표는 속을 비워서 "내 것이 아님"을 구분한다
+      const gb = el("g",{ opacity: on ? 1 : (b.remote ? .9 : .5) });
+      gb.appendChild(el("rect",{ x:26, y:y-10, width:w, height:20, rx:10,
+        fill: b.remote ? "#fff" : b.color,
+        stroke: b.remote ? REMOTE_COLOR : (on ? "#141C26" : "none"),
+        "stroke-width": b.remote ? 2 : (on ? 2.5 : 0) }));
+      const t = el("text",{ x:26+w/2, y:y+4, "text-anchor":"middle","font-size":11.5,
+        "font-weight": on ? 800 : 600, fill: b.remote ? REMOTE_COLOR : "#fff" });
+      t.textContent = b.name;
+      gb.appendChild(t);
+      g.appendChild(gb);
+      if(!on) return;
+      // HEAD 뱃지 → 현재 이름표를 가리키는 화살표
+      const hx = 26 + w;
+      g.appendChild(el("line",{ x1:hx+9, y1:y, x2:hx+16, y2:y, stroke:"var(--head)","stroke-width":2.5 }));
+      g.appendChild(el("path",{ d:`M ${hx+2} ${y} L ${hx+11} ${y-5} L ${hx+11} ${y+5} Z`, fill:"var(--head)" }));
+      g.appendChild(el("rect",{ x:hx+16, y:y-11, width:46, height:22, rx:11, fill:"var(--head)" }));
+      const ht = el("text",{ x:hx+39, y:y+4, "text-anchor":"middle","font-size":11,"font-weight":800,
+        fill:"#fff","font-family":"ui-monospace,Consolas,monospace" });
+      ht.textContent = "HEAD";
+      g.appendChild(ht);
+    });
+    svg.appendChild(g);
+  });
+
+  // 사이드 UI
+  $("nowBranch").textContent = S.head;
+  ["selSwitch","selMerge","selRebase"].forEach(k=>{
+    const s = $(k), keep = s.value;
+    s.innerHTML = "";
+    Object.keys(S.branches).forEach(n=>{
+      if(S.branches[n].remote) return;          // origin/main은 이동·병합 대상이 아니다
+      if(k!=="selSwitch" && n===S.head) return;
+      const o=document.createElement("option"); o.value=n; o.textContent=n; s.appendChild(o);
+    });
+    if([...s.options].some(o=>o.value===keep)) s.value = keep;
+  });
+
+  const lg = $("log");
+  lg.innerHTML = S.log.length
+    ? S.log.map(l=>`<div class="${l.k || "c"}">${esc(l.t)}</div>`).join("")
+    : `<div class="empty">아직 실행한 명령이 없습니다.</div>`;
+  lg.scrollTop = lg.scrollHeight;
+
+  const box = document.querySelector(".map-scroll");
+  box.scrollLeft = box.scrollWidth;                 // 기본은 가장 최근 역
+  const hx = cur().head ? pos[cur().head].x : null; // 좁은 화면에서 HEAD가 잘리면 그쪽으로
+  if(hx !== null && hx < box.scrollLeft + 40) box.scrollLeft = Math.max(0, hx - 60);
+}
+
+/* ───────── 시나리오 ───────── */
+const SCEN = {
+  merge: {
+    title:"기능 브랜치를 만들고 merge로 합치기",
+    steps:[
+      { cmd:'git commit -m "적 AI 추가"', run:()=>cmdCommit("적 AI 추가") },
+      { cmd:'git switch -c feature-jump', run:()=>cmdBranch("feature-jump") },
+      { cmd:'git commit -m "점프 물리"', run:()=>cmdCommit("점프 물리") },
+      { cmd:'git commit -m "이단 점프"', run:()=>cmdCommit("이단 점프") },
+      { cmd:'git switch main', run:()=>cmdSwitch("main") },
+      { cmd:'git commit -m "UI 폰트 교체"', run:()=>cmdCommit("UI 폰트 교체") },
+      { cmd:'git merge feature-jump', run:()=>cmdMerge("feature-jump") }
+    ]
+  },
+  rebase: {
+    title:"같은 상황을 rebase로 합치기",
+    steps:[
+      { cmd:'git commit -m "적 AI 추가"', run:()=>cmdCommit("적 AI 추가") },
+      { cmd:'git switch -c feature-jump', run:()=>cmdBranch("feature-jump") },
+      { cmd:'git commit -m "점프 물리"', run:()=>cmdCommit("점프 물리") },
+      { cmd:'git commit -m "이단 점프"', run:()=>cmdCommit("이단 점프") },
+      { cmd:'git switch main', run:()=>cmdSwitch("main") },
+      { cmd:'git commit -m "UI 폰트 교체"', run:()=>cmdCommit("UI 폰트 교체") },
+      { cmd:'git switch feature-jump', run:()=>cmdSwitch("feature-jump") },
+      { cmd:'git rebase main', run:()=>cmdRebase("main") },
+      { cmd:'git switch main', run:()=>cmdSwitch("main") },
+      { cmd:'git merge feature-jump', run:()=>cmdMerge("feature-jump") }
+    ]
+  }
+};
+function drawSteps(){
+  $("stepList").innerHTML = scenario.steps.map((s,i)=>
+    `<div class="${i<stepIdx?"done":""}">${i<stepIdx?"✓":"·"} <span class="cmd" style="display:inline">${s.cmd}</span></div>`
+  ).join("");
+  $("btnNext").textContent = stepIdx >= scenario.steps.length ? "끝났습니다" : "다음 단계";
+  $("btnNext").disabled = stepIdx >= scenario.steps.length;
+}
+function setMode(m){
+  mode = m;
+  [...$("modes").children].forEach(b=>{ if(b.dataset.mode) b.setAttribute("aria-pressed", b.dataset.mode===m); });
+  seenNodes = new Set(); seenEdges = new Set();
+  fresh(m === "free");
+  if(m==="free"){
+    $("freePanel").style.display=""; $("stepPanel").style.display="none";
+    say("브랜치를 만들고 커밋해보세요.");
+  } else {
+    $("freePanel").style.display="none"; $("stepPanel").style.display="";
+    scenario = SCEN[m]; stepIdx = 0; drawSteps();
+    say(`<b>${scenario.title}</b> — 아래 ‘다음 단계’를 눌러 한 줄씩 실행하세요.`);
+  }
+  render();
+}
+
+/* ───────── 연결 ───────── */
+$("btnCommit").onclick = ()=>cmdCommit($("msg").value.trim());
+$("btnBranch").onclick = ()=>cmdBranch($("bname").value.trim());
+$("btnSwitch").onclick = ()=>cmdSwitch($("selSwitch").value);
+$("btnMerge").onclick  = ()=>cmdMerge($("selMerge").value);
+$("btnRebase").onclick = ()=>cmdRebase($("selRebase").value);
+const TEAM_MSGS = ["UI 폰트 교체","사운드 볼륨 조절","저장 버그 수정","타이틀 화면 정리"];
+let teamN = 0;
+$("btnTeam").onclick   = ()=>cmdTeamCommit(TEAM_MSGS[teamN++ % TEAM_MSGS.length]);
+$("btnPull").onclick   = cmdPull;
+$("btnPush").onclick   = cmdPush;
+$("btnUndo").onclick   = cmdUndo;
+$("btnReset").onclick  = ()=>{ seenNodes=new Set(); seenEdges=new Set(); fresh(); say("처음 상태로 돌아왔습니다."); render(); };
+$("btnNext").onclick   = ()=>{ if(stepIdx<scenario.steps.length){ scenario.steps[stepIdx].run(); stepIdx++; drawSteps(); } };
+$("btnRestart").onclick= ()=>setMode(mode);
+$("modes").onclick = e=>{ if(e.target.dataset.mode) setMode(e.target.dataset.mode); };
+$("msg").onkeydown = e=>{ if(e.key==="Enter") $("btnCommit").click(); };
+$("bname").onkeydown = e=>{ if(e.key==="Enter") $("btnBranch").click(); };
+
+/* ───────── 자동 안내 ───────── */
+const TOUR = [
+  { title:"이 도구가 하는 일",
+    body:"Git에서 브랜치가 갈라지고 다시 합쳐지는 과정을 <b>지하철 노선도</b>로 보여줍니다. 커밋은 <b>역</b>, 브랜치는 <b>노선</b>, 병합 커밋은 <b>환승역</b>입니다. 지금부터 실제로 하나씩 해보겠습니다." },
+
+  { sel:".map", title:"가운데가 노선도입니다",
+    body:"지금은 <code>최초 커밋</code> 하나뿐입니다. 동그라미 위에 커밋 메시지가, 그 바로 아래에 커밋 해시가 적혀 있습니다. 오른쪽 알약이 <b>브랜치 이름표</b>이고, 분홍색 <code>HEAD</code>가 <b>지금 내가 올라타 있는 브랜치</b>를 가리킵니다. 속이 빈 <code>origin/main</code>은 팀 공용 저장소의 위치인데, 잠시 뒤에 다룹니다." },
+
+  { sel:".now", title:"현재 위치",
+    body:"HEAD가 어느 브랜치에 있는지 여기서 확인합니다. 커밋을 만들면 <b>이 브랜치의 끝</b>에 붙습니다. 지금은 <code>main</code>입니다." },
+
+  { sel:"#msg", title:"커밋 만들기",
+    body:"메시지를 적고 <b>커밋</b> 버튼을 누르면 역이 하나 늘어납니다. 직접 눌러보겠습니다.",
+    act:()=>{ $("msg").value="적 AI 추가"; cmdCommit("적 AI 추가"); } },
+
+  { sel:".map", title:"역이 하나 늘었습니다",
+    body:"선로가 오른쪽으로 한 칸 뻗고 <code>main</code> 이름표와 <code>HEAD</code>가 같이 따라왔습니다. 커밋은 <b>지우는 게 아니라 계속 쌓이는</b> 기록입니다." },
+
+  { sel:"#btnPush", title:"원격에 올려두기",
+    body:"팀은 <b>원격 저장소(origin)</b>를 함께 씁니다. 속이 빈 <code>origin/main</code> 이름표가 그 위치인데, 아직 <b>내 커밋을 모릅니다</b>. <code>git push</code>로 올려 팀과 같은 지점에 맞춰 둡니다.",
+    act:()=>{ cmdPush(); } },
+
+  { sel:"#bname", title:"브랜치 만들기",
+    body:"새 기능을 main과 분리해서 작업하려면 브랜치를 만듭니다. <code>feature-jump</code> 노선을 새로 깔아보겠습니다.",
+    act:()=>{ $("bname").value="feature-jump"; cmdBranch("feature-jump"); } },
+
+  { sel:".map", title:"노선이 갈라졌습니다",
+    body:"아직 새 역은 없습니다. 브랜치를 만든다는 건 <b>같은 역에 이름표를 하나 더 붙이는 것</b>일 뿐입니다. HEAD가 새 노선으로 옮겨간 것만 달라졌습니다." },
+
+  { sel:".map", title:"기능 브랜치에서 두 번 작업",
+    body:"이제 커밋하면 <code>feature-jump</code> 쪽으로 선로가 뻗습니다. main은 건드리지 않은 채로 아래쪽에 새 노선이 생기는 걸 보세요.",
+    act:()=>{ cmdCommit("점프 물리"); tLater(()=>cmdCommit("이단 점프"),700); } },
+
+  { sel:"#selSwitch", title:"브랜치 이동",
+    body:"다른 노선으로 갈아탈 때 씁니다. 실제 명령은 <code>git switch main</code>입니다. main으로 돌아가 보겠습니다.",
+    act:()=>{ cmdSwitch("main"); } },
+
+  { sel:"#btnTeam", title:"그 사이 팀원이 원격에 커밋했다면",
+    body:"내가 기능을 만드는 동안 팀원도 작업을 올립니다. 팀 공용 저장소가 <b>원격(origin)</b>이고, 속이 빈 <code>origin/main</code> 이름표가 그 위치입니다. 팀원이 커밋하는 상황을 만들어 보겠습니다.",
+    act:()=>{ cmdTeamCommit("UI 폰트 교체"); } },
+
+  { sel:".map", title:"원격만 앞서 나갔습니다",
+    body:"<code>origin/main</code>은 새 역으로 갔는데 내 <code>main</code>은 <b>제자리</b>입니다. 팀원이 올린 커밋은 <b>받아오기 전까지 내 저장소에 없습니다</b>." },
+
+  { sel:"#btnPull", title:"받아오기 (pull)",
+    body:"<code>git pull</code>로 원격의 새 역을 내 저장소로 가져옵니다. <code>git fetch</code>(가져오기) + <code>git merge</code>(합치기)를 한 번에 하는 명령입니다.",
+    act:()=>{ cmdPull(); } },
+
+  { sel:".map", title:"두 노선이 갈라진 채 뻗었습니다",
+    body:"main은 팀원 작업까지 받아 오른쪽으로, <code>feature-jump</code>는 아래쪽으로 <b>서로 다른 방향</b>으로 나아갔습니다. 어느 쪽도 상대의 작업을 갖고 있지 않습니다. 이걸 합치는 방법이 <b>merge</b>와 <b>rebase</b>입니다." },
+
+  { sel:"#selMerge", title:"병합하기",
+    body:"이제 두 갈래를 합칩니다. main에 서 있는 상태에서 <code>feature-jump</code>를 골라 <b>병합</b>을 누릅니다.",
+    act:()=>{ $("selMerge").value="feature-jump"; cmdMerge("feature-jump"); } },
+
+  { sel:".map", title:"환승역이 생겼습니다",
+    body:"맨 끝에 가운데가 채워진 동그라미가 <b>병합 커밋</b>입니다. Git에서 <b>부모가 둘인 유일한 커밋</b>이고, 갈라졌던 기록이 그대로 남습니다." },
+
+  { sel:"#btnPush", title:"올려서 팀원과 공유",
+    body:"합친 결과를 <code>git push</code>로 원격에 올립니다. <code>origin/main</code> 이름표가 내 <code>main</code>과 같은 역으로 따라오면 팀원도 이 작업을 받아갈 수 있습니다.",
+    act:()=>{ cmdPush(); } },
+
+  { sel:".legend", title:"기호 읽는 법",
+    body:"빈 동그라미는 보통 커밋, 가운데가 찬 동그라미는 병합 커밋, 점선은 rebase 후 버려진 옛 커밋입니다." },
+
+  { sel:"#log", title:"실제 git 명령",
+    body:"버튼을 누를 때마다 <b>진짜 터미널에 칠 명령</b>이 여기 쌓입니다. 이 목록을 그대로 Git Bash에 옮겨 치면 같은 결과가 나옵니다." },
+
+  { sel:"#modes", title:"시나리오로 비교하기",
+    body:"<b>시나리오 · Merge</b>와 <b>시나리오 · Rebase</b>는 같은 상황을 두 방식으로 처리합니다. rebase 쪽은 해시가 바뀌고 옛 커밋이 점선으로 남는데, 그게 <b>push한 브랜치에 rebase를 쓰면 안 되는 이유</b>입니다." },
+
+  { sel:"#btnUndo", title:"마음껏 실험하세요",
+    body:"잘못 눌러도 <b>한 단계 되돌리기</b>와 <b>처음부터</b>가 있습니다. 안내를 마칩니다. 이제 자유 모드에서 직접 해보세요." }
+];
+
+let tIdx = 0, tRaf = null, tPlaying = true, tEls = null, tActs = [];
+const TOUR_DOCK = 20;        // 노선도 패널과 말풍선 사이 고정 여백
+let tT0 = 0, tPauseAt = 0;   // 단계 시작 시각 / 일시정지한 시각
+let tSnap = [];              // 단계 진입 시점의 노선도 상태
+// 단계 동작(act)은 예약해두고 단계를 넘기거나 안내를 닫을 때 전부 취소한다.
+// (예약된 커밋이 안내를 닫은 뒤에 실행되던 문제)
+const tLater = (fn, ms) => { tActs.push(setTimeout(fn, ms)); };
+const tClear = () => { tActs.forEach(clearTimeout); tActs = []; };
+
+// 안내 단계를 오갈 때 노선도도 같이 되감기 위한 스냅샷
+const tourCapture = () => ({ s:clone(S), undo:clone(undoStack),
+  nodes:[...seenNodes], edges:[...seenEdges], note:$("note").innerHTML });
+function tourRestore(k){
+  S = clone(k.s); undoStack = clone(k.undo);
+  seenNodes = new Set(k.nodes); seenEdges = new Set(k.edges);
+  $("note").innerHTML = k.note;
+  render();
+}
+
+function tourBuild(){
+  const mask = document.createElement("div"); mask.className="tour-mask";
+  const hole = document.createElement("div"); hole.className="tour-hole";
+  const tip  = document.createElement("div"); tip.className="tour-tip";
+  tip.innerHTML = `
+    <div class="meta"><span id="tNum"></span></div>
+    <h3 id="tTitle"></h3>
+    <p id="tBody"></p>
+    <div class="tour-ctl">
+      <button id="tPrev">이전</button>
+      <button id="tPlay" class="pri">일시정지</button>
+      <span class="sp"></span>
+      <button id="tNext">다음</button>
+      <button id="tEnd">닫기</button>
+    </div>
+    <div class="tour-bar"><i id="tBar"></i></div>`;
+  document.body.append(mask, hole, tip);
+  tEls = {mask, hole, tip};
+  $("tPrev").onclick = ()=>tourGo(tIdx-1);
+  $("tNext").onclick = ()=>tourGo(tIdx+1);
+  $("tPlay").onclick = tourToggle;
+  $("tEnd").onclick  = tourEnd;
+  mask.onclick = e=>{ if(e.target===mask) tourToggle(); };
+}
+
+function tourStart(){
+  tourEnd();
+  setMode("free");
+  tourBuild();
+  tIdx = 0; tPlaying = true; tSnap = [];
+  document.body.classList.add("tour-on");
+  tourShow();
+  window.addEventListener("resize", tourPlace);
+}
+
+function tourGo(i){
+  if(i < 0 || i >= TOUR.length){ if(i>=TOUR.length) tourEnd(); return; }
+  tIdx = i; tourShow();
+}
+
+function tourShow(){
+  tClear(); cancelAnimationFrame(tRaf);
+  const s = TOUR[tIdx];
+  // 이 단계에 처음 오면 상태를 저장하고, 다시 오면(특히 '이전') 그때 상태로 되돌린다
+  if(tSnap[tIdx]) tourRestore(tSnap[tIdx]);
+  else tSnap[tIdx] = tourCapture();
+  // 동작이 있는 단계는 다시 실행되므로 그 뒤 단계의 스냅샷은 무효가 된다
+  if(s.act) tSnap.length = tIdx + 1;
+  $("tNum").textContent   = `단계 ${tIdx+1} / ${TOUR.length}`;
+  $("tTitle").textContent = s.title;
+  $("tBody").innerHTML    = s.body;
+  $("tPrev").disabled = tIdx === 0;
+  $("tNext").textContent = tIdx === TOUR.length-1 ? "마치기" : "다음";
+  tourPlace();
+  // 단계 진입 상태로 되돌린 뒤 실행하므로 중복 생성되지 않는다
+  if(s.act) tLater(()=>{ s.act(); tourPlace(); }, 550);
+  const dur = Math.min(9500, 3600 + s.body.replace(/<[^>]+>/g,"").length * 55) + (s.act ? 1400 : 0);
+  tourTimer(dur);
+}
+
+function tourPlace(){
+  if(!tEls) return;
+  const s = TOUR[tIdx];
+  const tipH = tEls.tip.offsetHeight;
+  // 넓은 화면: 노선도 패널 바로 아래에 일정한 여백을 두고 붙인다 (오른쪽 조작판과 좌우로 어긋나 가리지 않는다)
+  // 좁은 화면: 붙일 빈 자리가 없으므로 화면 아래 고정 + 페이지 여백 확보
+  const wide = innerWidth >= 900;
+  if(wide) document.body.style.removeProperty("--tour-pad");
+  else      document.body.style.setProperty("--tour-pad", (tipH + 60) + "px");
+
+  const el = s.sel ? document.querySelector(s.sel) : null;
+  if(el){
+    // 넓은 화면은 화면 안에만 들어오면 되고, 좁은 화면은 말풍선 위까지만 허용된다
+    const top = 12, bottom = wide ? innerHeight - 12 : innerHeight - tipH - 22 - 12;
+    const r0 = el.getBoundingClientRect();
+    if(r0.bottom > bottom)   scrollBy(0, Math.min(r0.bottom - bottom, r0.top - top));
+    else if(r0.top < top)    scrollBy(0, r0.top - top);
+  }
+  // 스크롤이 끝난 뒤 말풍선 자리를 잡는다
+  if(wide){
+    const m = document.querySelector(".panel.map").getBoundingClientRect();
+    tEls.tip.style.top = Math.max(12, Math.min(m.bottom + TOUR_DOCK, innerHeight - tipH - 22)) + "px";
+    tEls.tip.style.bottom = "auto";
+    tEls.tip.style.left = (m.left + m.width/2) + "px";   // 노선도 폭에 맞춰 중앙. 오른쪽 조작판을 가리지 않는다
+  } else {
+    tEls.tip.style.top = "auto"; tEls.tip.style.bottom = "22px"; tEls.tip.style.left = "50%";
+  }
+  if(!el){ tEls.hole.style.opacity = 0; return; }
+  tEls.hole.style.opacity = 1;
+  const r = el.getBoundingClientRect(), p = 8;
+  Object.assign(tEls.hole.style, {
+    top:(r.top-p)+"px", left:(r.left-p)+"px",
+    width:(r.width+p*2)+"px", height:(r.height+p*2)+"px"
+  });
+}
+
+function tourTimer(dur){
+  const bar = $("tBar");
+  tT0 = tPauseAt = performance.now();
+  const tick = now => {
+    if(!tPlaying){ tRaf = requestAnimationFrame(tick); return; }
+    const k = Math.min(1, Math.max(0, (now - tT0) / dur));
+    bar.style.width = (k*100) + "%";
+    if(k < 1) tRaf = requestAnimationFrame(tick);
+    else tourGo(tIdx + 1);
+  };
+  tRaf = requestAnimationFrame(tick);
+}
+
+function tourToggle(){
+  tPlaying = !tPlaying;
+  // 멈춰 있던 시간만큼 시작 시각을 미룬다. 이어보기가 멈춘 자리에서 이어지도록
+  if(tPlaying) tT0 += performance.now() - tPauseAt;
+  else tPauseAt = performance.now();
+  $("tPlay").textContent = tPlaying ? "일시정지" : "이어보기";
+}
+
+function tourEnd(){
+  tClear(); cancelAnimationFrame(tRaf);
+  window.removeEventListener("resize", tourPlace);
+  document.body.classList.remove("tour-on");
+  document.body.style.removeProperty("--tour-pad");
+  if(tEls){ tEls.mask.remove(); tEls.hole.remove(); tEls.tip.remove(); tEls = null; }
+}
+
+$("btnTour").onclick = tourStart;
+document.addEventListener("keydown", e=>{
+  if(!tEls) return;
+  if(e.key === "Escape") tourEnd();
+  if(e.key === "ArrowRight") tourGo(tIdx+1);
+  if(e.key === "ArrowLeft") tourGo(tIdx-1);
+  if(e.key === " "){ e.preventDefault(); tourToggle(); }
+});
+
+fresh(); render();
+</script>

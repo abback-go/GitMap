@@ -128,6 +128,9 @@ S = {
 - 사용자 입력(커밋 메시지, 브랜치 이름)을 `innerHTML`에 넣기 전 **반드시 `esc()`** 를 통과시킬 것
 - **`tLater`로 예약한 동작은 다음 `tClear`에 지워진다.** 안내 단계를 건너뛸 때 그 단계의 두 번째 동작이 통째로 빠지는 원인이었다. `tJumping` 플래그가 켜져 있으면 즉시 실행된다 — 새 지연 동작을 넣을 때 이 경로를 확인할 것
 - **rebase로 버려지는 커밋은 새 lane으로 옮긴다** (`ghostLane`). 안 그러면 앞선 rebase의 유령과 같은 lane·같은 칸에 놓여 서로 가린다
+- **첫 줄 `<!DOCTYPE html>`을 지우지 말 것.** 없으면 quirks mode로 떨어져 `document.scrollingElement`가 `BODY`가 되고 **window `scroll` 이벤트가 안 잡힌다** (안내 스포트라이트가 스크롤을 못 따라갔다)
+- **이름표 폭을 글자 수로 어림잡지 말 것.** Pretendard는 고정폭이 아니라 한글 10자부터 알약을 넘쳤다. `textW()`로 실측한다. 웹폰트가 늦게 오면 첫 렌더가 대체 글꼴 기준이므로 `document.fonts.ready`에서 캐시를 비우고 다시 그린다
+- **`tourJump`는 반드시 `tBase`(안내 시작 상태)로 되돌린 뒤 재생한다.** 현재 상태 위에 덧실행하면 같은 커밋이 두 번 붙는다
 - Bash 도구에서 PowerShell here-string(`@'...'@`)은 동작하지 않는다. 여러 줄 커밋 메시지는 heredoc(`<<'EOF'`)을 쓸 것
 
 ---

@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Git 노선도 — 브랜치가 어떻게 갈라지고 만나는지 눈으로 보기</title>
@@ -314,6 +315,19 @@ const clone = o => JSON.parse(JSON.stringify(o));
 // 커밋 메시지·브랜치 이름은 사용자가 입력한다. HTML로 넣기 전에 반드시 통과시킬 것.
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
+// SVG 글자 폭 실측용. 이름표 알약 크기를 글자 수로 어림잡으면 한글에서 넘친다
+const LBL_FONT = '11.5px "Pretendard Variable",Pretendard,"Malgun Gothic",system-ui,sans-serif';
+const _mctx = document.createElement("canvas").getContext("2d");
+const _wcache = new Map();
+function textW(s, weight){
+  const k = weight + "|" + s;
+  if(_wcache.has(k)) return _wcache.get(k);
+  _mctx.font = weight + " " + LBL_FONT;
+  const w = _mctx.measureText(s).width;
+  _wcache.set(k, w);
+  return w;
+}
+
 /* ───────── 상태 ───────── */
 // withRemote=false면 원격 없이 시작한다 (시나리오 모드는 원격을 다루지 않는다)
 function fresh(withRemote){
@@ -574,7 +588,9 @@ function render(){
     ancestors(b.remote ? b.known : b.head).forEach(x=>gotten.add(x));
   });
   const unfetched = id => !gotten.has(id);
-  const lblW = b => b.name.length*7.6 + 20;                       // 이름표 알약 너비
+  // 이름표 알약 너비. 글자 수로 어림잡으면 한글이 알약을 넘는다(10자부터 넘쳤다).
+  // Pretendard는 고정폭이 아니므로 실제 그려질 폭을 재서 쓴다
+  const lblW = b => textW(b.name, b.name===S.head ? 800 : 600) + 20;
   const lblExt = b => lblW(b) + (b.name===S.head ? 64 : 8);       // HEAD 뱃지까지 포함한 오른쪽 끝
   const lblRight = list => 26 + Math.max(...list.map(lblExt));
   const stackMax = Math.max(1, ...Object.values(labels).map(l=>l.length));
@@ -977,7 +993,7 @@ let tSnap = [];              // 단계 진입 시점의 노선도 상태
 // (예약된 커밋이 안내를 닫은 뒤에 실행되던 문제)
 // 건너뛰는 중에는 예약을 기다리지 않고 바로 실행한다.
 // 안 그러면 뒤이은 tClear에 지워져 그 단계의 두 번째 동작이 통째로 빠진다
-let tJumping = false, tSpot = null;   // tSpot: 동작 뒤 함께 밝힐 대상
+let tJumping = false, tSpot = null, tBase = null;   // tSpot: 동작 뒤 함께 밝힐 대상 / tBase: 안내 시작 상태
 // 구멍 두 개를 뚫으려면 clip-path: path()가 필요하다. 안 되면 예전 한 곳 방식으로 돈다
 const CUTOUT_OK = typeof CSS !== "undefined" && CSS.supports && CSS.supports("clip-path", 'path("M0,0h1v1h-1z")');
 const tLater = (fn, ms) => { if(tJumping) fn(); else tActs.push(setTimeout(fn, ms)); };
@@ -1030,8 +1046,10 @@ function tourStart(step){
   setMode("free");
   tourBuild();
   tIdx = 0; tPlaying = true; tSnap = [];
+  tBase = tourCapture();            // 건너뛸 때 여기서 다시 재생한다
   document.body.classList.add("tour-on");
   window.addEventListener("resize", tourPlace);
+  window.addEventListener("scroll", tourSync, { passive:true });
   if(step > 0) tourJump(step); else tourShow();
 }
 
@@ -1045,6 +1063,9 @@ function tourGo(i){
 function tourJump(n){
   n = Math.max(0, Math.min(TOUR.length-1, n));
   tClear(); cancelAnimationFrame(tRaf);
+  // 반드시 시작 상태로 되돌린 뒤 재생한다. 현재 상태 위에 덧실행하면
+  // 이미 만든 커밋에 같은 커밋이 또 붙는다 (막대로 앞 단계를 누를 때)
+  if(tBase) tourRestore(tBase);
   tSnap = [];
   tJumping = true;
   try {
@@ -1095,7 +1116,10 @@ function tourShow(){
   tourTimer(dur);
 }
 
-function tourPlace(){
+// 스크롤 중에는 스크롤을 다시 건드리지 않고 구멍·말풍선 자리만 맞춘다
+function tourSync(){ tourPlace(false); }
+
+function tourPlace(mayScroll){
   if(!tEls) return;
   const s = TOUR[tIdx];
   const tipH = tEls.tip.offsetHeight;
@@ -1112,7 +1136,7 @@ function tourPlace(){
   const el  = s.sel ? document.querySelector(s.sel) : null;
   const el2 = (tSpot && twoUp && tSpot !== s.sel) ? document.querySelector(tSpot) : null;
   const solo = (!twoUp && tSpot) ? document.querySelector(tSpot) : el;
-  if(solo){
+  if(solo && mayScroll !== false){
     // 넓은 화면은 화면 안에만 들어오면 되고, 좁은 화면은 말풍선 위까지만 허용된다
     const top = 12, bottom = wide ? innerHeight - 12 : innerHeight - tipH - 22 - 12;
     const r0 = solo.getBoundingClientRect();
@@ -1172,6 +1196,7 @@ function tourToggle(){
 function tourEnd(){
   tClear(); cancelAnimationFrame(tRaf);
   window.removeEventListener("resize", tourPlace);
+  window.removeEventListener("scroll", tourSync);
   document.body.classList.remove("tour-on");
   document.body.style.removeProperty("--tour-pad");
   if(tEls){
@@ -1191,6 +1216,10 @@ document.addEventListener("keydown", e=>{
 });
 
 fresh(); render();
+
+// 웹폰트가 늦게 오면 첫 렌더는 대체 글꼴로 폭을 잰 상태다. 로드되면 다시 재서 그린다
+if(document.fonts && document.fonts.ready)
+  document.fonts.ready.then(()=>{ _wcache.clear(); render(); });
 
 // #step=13 으로 열면 그 단계부터 재개한다 (쉬는 시간 뒤 이어보기)
 const tStep = /^#step=(\d+)$/.exec(location.hash);

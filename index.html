@@ -71,8 +71,8 @@
   .lg{display:flex;align-items:center;gap:6px}
   .lg i{width:14px;height:14px;border-radius:50%;border:3px solid var(--ink-soft);background:#fff;display:inline-block}
   .lg i.transfer{border-color:var(--ink);box-shadow:inset 0 0 0 2px #fff, inset 0 0 0 4px var(--ink)}
-  .lg i.ghost{border-style:dashed;opacity:.45}
-  .lg i.unfetched{border-style:dashed;border-color:#5B6876;opacity:.5}
+  .lg i.ghost{border-style:dotted;opacity:.5}
+  .lg i.unfetched{border-style:dashed;border-color:#5B6876;opacity:.85}
   .lg i.headmark{width:22px;height:12px;border:none;border-radius:999px;background:var(--head)}
   .lg i.remote{width:22px;height:12px;border:2px solid #5B6876;border-radius:999px;background:#fff}
 
@@ -236,9 +236,9 @@
       <div class="legend">
         <span class="lg"><i></i> <b>커밋</b> 하나의 역</span>
         <span class="lg"><i class="transfer"></i> <b>병합 커밋</b> 두 노선이 만나는 환승역</span>
-        <span class="lg"><i class="ghost"></i> <b>버려진 커밋</b> rebase 후 남은 옛 선로</span>
+        <span class="lg"><i class="ghost"></i> <b>버려진 커밋</b> 점 동그라미 · rebase 후 남은 옛 선로</span>
         <span class="lg"><i class="headmark"></i> <b>HEAD</b> 지금 올라타 있는 브랜치 이름표를 가리킴</span>
-        <span class="lg"><i class="unfetched"></i> <b>아직 받지 않은 역</b> 서버에는 있지만 fetch 전</span>
+        <span class="lg"><i class="unfetched"></i> <b>아직 받지 않은 역</b> 파선 동그라미 · 서버에는 있지만 fetch 전</span>
         <span class="lg"><i class="remote"></i> <b>origin/main</b> 원격 저장소(팀 공용)가 가리키는 역</span>
       </div>
     </div>
@@ -766,7 +766,8 @@ function render(){
         "stroke-width": !live ? 3 : (soft ? 5 : 7),
         "stroke-linecap":"round",
         opacity: live ? (soft ? .7 : 1) : .4,
-        "stroke-dasharray": !live ? "6 6" : (soft ? "5 6" : "none")
+        // 버려진 선로는 점, 아직 안 받은 선로는 파선 — 색만으로 구분하면 헷갈린다
+        "stroke-dasharray": !live ? "0.1 7" : (soft ? "7 5" : "none")
       });
       if(live && !soft && !seenEdges.has(key)){
         const L = 400;
@@ -793,7 +794,9 @@ function render(){
       stroke: !live ? "#AEB8C4" : (soft ? REMOTE_COLOR : c.color),
       "stroke-width": c.merge ? 4 : 5,
       opacity: !live ? .45 : (soft ? .8 : 1),
-      "stroke-dasharray": !live ? "4 4" : (soft ? "5 5" : "none") }));
+      // 버려진 역은 점 동그라미, 아직 안 받은 역은 파선 동그라미
+      "stroke-linecap": live ? "butt" : "round",
+      "stroke-dasharray": !live ? "0.1 5" : (soft ? "7 5" : "none") }));
     // 가운데 점도 바깥 원과 같은 상태로 그린다 (안 그러면 흐린 역인데 점만 원색으로 남는다)
     if(c.merge) gi.appendChild(el("circle",{ r:7,
       fill: !live ? "#AEB8C4" : (soft ? REMOTE_COLOR : c.color),
@@ -1049,7 +1052,7 @@ const TOUR = [
     body:"가운데가 채워진 동그라미가 <b>병합 커밋</b>입니다. Git에서 <b>부모가 둘인 유일한 커밋</b>이고, 갈라졌던 기록이 그대로 남습니다. 서버 띠의 <code>origin/feature-jump</code>는 <b>올렸던 자리에 그대로</b> 있는데, 이름표는 저마다 따로 움직이기 때문입니다." },
 
   { ch:"3부 · 정리", sel:".legend", title:"기호 읽는 법",
-    body:"빈 동그라미는 보통 커밋, 가운데가 찬 동그라미는 병합 커밋, 회색 점선은 rebase 후 버려진 옛 커밋, 서버 띠 쪽 흐린 점선은 아직 fetch하지 않은 역입니다." },
+    body:"빈 동그라미는 보통 커밋, 가운데가 찬 동그라미는 병합 커밋입니다. 테두리가 <b>점</b>으로 흩어진 회색 동그라미는 rebase 후 <b>버려진</b> 커밋, 테두리가 <b>파선</b>인 진회색 동그라미는 서버에는 있지만 <b>아직 받지 않은</b> 역입니다." },
 
   { sel:"#log", title:"실제 git 명령",
     body:"버튼을 누를 때마다 <b>진짜 터미널에 칠 명령</b>이 여기 쌓입니다. 이 목록을 그대로 Git Bash에 옮겨 치면 같은 결과가 나옵니다. 맨 위 흐린 두 줄(<code>git init</code>, <code>git remote add</code>)은 <b>저장소를 만들 때 한 번만</b> 치는 것이고, <code>git add .</code>과 <code>git commit</code>은 <b>담고 · 저장하는</b> 짝이라 매번 함께 나옵니다." },

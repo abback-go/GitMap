@@ -95,6 +95,25 @@
 - `git-branch-map.html` → **`index.html`로 이름 변경** — Pages 루트에서 바로 열리도록. 학생 링크가 짧아졌다
 - `develop` 브랜치 생성
 
+## 17차 — Codex 2차 검수 반영
+
+Critical 없음. Major 2 + Minor 3, 전부 확인 후 수정.
+
+- **로그 재현 약속이 여전히 안 지켜졌다.** 머리말에 `git init` / `git remote add`만
+  넣었는데, ① 최초 커밋 기록이 없고 ② upstream 설정이 없어 첫 `git push`가
+  `no upstream branch`로 실패한다. 머리말을 다섯 줄로 늘려
+  (`init` → `add` → `commit "최초 커밋"` → `remote add` → `push -u origin main`)
+  해결. 팀원 커밋·PR은 `#` 주석이라 애초에 명령이 아니므로, 문구를
+  "`$`로 시작하는 줄을 옮겨 치면 된다 / `#`은 팀원이나 GitHub이 한 일"로 갈랐다
+- **원격 기능 브랜치가 둘 이상이면 PR이 삽입 순서상 첫 번째를 골랐다.** 사용자가
+  고를 방법이 없었다. `selPR` 드롭다운 추가(아직 안 합쳐진 원격 브랜치만 채운다),
+  `cmdPR(name)`으로 명시 전달. 이미 합쳐진 이름을 지정하면 거절
+- 안내 되감기가 `S`만 복원하고 입력칸은 그대로였다 → `tourCapture`/`tourRestore`에
+  `#msg`, `#bname` 포함
+- 담긴 변경 칩에 `role="status"` `aria-live="polite"`
+- 8절 기호 규칙 수치가 코드와 달랐다(선로 `0.1 7`, opacity가 역/선로/범례 제각각).
+  표를 역·선로로 나눠 실제 값으로 고치고 범례 opacity를 `.85` → `.8`로 통일
+
 ## 16차 — 안내 PR 단계 + 범례 아이콘 구분
 
 - 안내 24 → 25단계. PR과 로컬 merge는 같은 브랜치에 둘 다 못 쓰므로(먼저 합친

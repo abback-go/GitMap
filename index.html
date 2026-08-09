@@ -2,6 +2,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Git 노선도 — 브랜치가 어떻게 갈라지고 만나는지 눈으로 보기</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
+<!-- 파비콘도 파일 안에 둔다(단일 HTML 유지). 갈라지는 두 노선과 환승역 -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23EDF0F5'/%3E%3Cpath d='M10 24h18c8 0 8 16 16 16h10' stroke='%23EF7C1C' stroke-width='7' fill='none' stroke-linecap='round'/%3E%3Cpath d='M10 24h44' stroke='%230052A4' stroke-width='7' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='28' cy='24' r='7' fill='%23fff' stroke='%230052A4' stroke-width='5'/%3E%3C/svg%3E">
 <style>
   :root{
     --paper:#EDF0F5;
@@ -416,6 +418,10 @@ function cmdRebase(name){
     render(); return;
   }
   snap();
+  // 이번에 버려지는 역들은 새 줄로 옮긴다. 안 그러면 앞선 rebase의 유령과
+  // 같은 lane·같은 칸에 놓여 서로 가린다 (rebase를 두 번 하면 바로 겹쳤다)
+  const ghostLane = S.laneNext++;
+  only.forEach(id => { S.commits[id].lane = ghostLane; });
   let parent = t.head; const made = [];
   replay.forEach(old=>{
     const id = hash();

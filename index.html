@@ -69,6 +69,7 @@
   .lg i{width:14px;height:14px;border-radius:50%;border:3px solid var(--ink-soft);background:#fff;display:inline-block}
   .lg i.transfer{border-color:var(--ink);box-shadow:inset 0 0 0 2px #fff, inset 0 0 0 4px var(--ink)}
   .lg i.ghost{border-style:dashed;opacity:.45}
+  .lg i.unfetched{border-style:dashed;border-color:#5B6876;opacity:.5}
   .lg i.headmark{width:22px;height:12px;border:none;border-radius:999px;background:var(--head)}
   .lg i.remote{width:22px;height:12px;border:2px solid #5B6876;border-radius:999px;background:#fff}
 
@@ -198,6 +199,7 @@
         <span class="lg"><i class="transfer"></i> <b>병합 커밋</b> 두 노선이 만나는 환승역</span>
         <span class="lg"><i class="ghost"></i> <b>버려진 커밋</b> rebase 후 남은 옛 선로</span>
         <span class="lg"><i class="headmark"></i> <b>HEAD</b> 지금 올라타 있는 브랜치 이름표를 가리킴</span>
+        <span class="lg"><i class="unfetched"></i> <b>아직 받지 않은 역</b> 서버에는 있지만 fetch 전</span>
         <span class="lg"><i class="remote"></i> <b>origin/main</b> 원격 저장소(팀 공용)가 가리키는 역</span>
       </div>
     </div>
@@ -235,6 +237,9 @@
         <h2 style="margin-top:14px">원격 저장소 (origin)</h2>
         <div class="row" style="margin:8px 0 6px">
           <button class="act ghost" id="btnTeam" style="flex:1">팀원이 커밋</button>
+        </div>
+        <div class="row" style="margin-bottom:6px">
+          <button class="act ghost" id="btnFetch" style="flex:1">가져오기 · fetch</button>
         </div>
         <div class="row" style="margin-bottom:10px">
           <button class="act ghost" id="btnPull" style="flex:1">받아오기 · pull</button>
@@ -289,8 +294,9 @@ function fresh(withRemote){
   doCommit("최초 커밋");
   // 원격은 같은 역에서 출발한다. lane 번호를 새로 쓰지 않아 로컬 브랜치 색이 밀리지 않는다
   // 선로 색은 main과 같게 둔다("노선 = 색" 규칙 유지). 원격임은 이름표 모양으로만 구분
+  // head = 서버의 실제 위치, known = 내가 fetch로 받아 아는 위치. 둘이 벌어진 구간이 "아직 안 받은 역"
   if(withRemote !== false)
-    S.branches[REMOTE] = { name:REMOTE, head:S.branches.main.head,
+    S.branches[REMOTE] = { name:REMOTE, head:S.branches.main.head, known:S.branches.main.head,
                            lane:S.branches.main.lane, color:S.branches.main.color, remote:true };
   S.log = [];
   undoStack = [];
@@ -429,15 +435,27 @@ function cmdTeamCommit(msg){
   const id = doCommit(msg);
   S.head = back;
   log(`# 팀원이 원격에 "${msg}" 커밋을 올렸습니다`, "n");
-  say(`원격 저장소에 역 <code>${id}</code> 이(가) 생겼습니다. <b>${esc(back)}</b>는 아직 그대로입니다 — 받아오기 전에는 내 저장소에 반영되지 않습니다.`);
+  say(`서버에 역 <code>${id}</code> 이(가) 생겼습니다. 아직 <b>가져오지 않아</b> 흐리게 그려집니다 — <code>${REMOTE}</code> 이름표도 <b>${esc(back)}</b>도 제자리입니다.`);
+  render();
+}
+// fetch: 서버 상태를 내려받기만 한다. 내 브랜치는 건드리지 않는다
+function cmdFetch(){
+  const r = S.branches[REMOTE];
+  if(!r) return say("이 모드에서는 원격 저장소를 다루지 않습니다.");
+  if(r.known === r.head){ log(`git fetch`); say("서버에 새 역이 없습니다. 가져올 것이 없습니다."); return; }
+  snap();
+  r.known = r.head;
+  log(`git fetch`);
+  say(`서버의 새 역을 <b>내려받았습니다</b>. <code>${REMOTE}</code> 이름표가 따라왔지만 내 <b>main</b>은 <b>제자리</b>입니다 — <code>fetch</code>는 가져오기만 하고 <b>합치지 않습니다</b>.`);
   render();
 }
 function cmdPull(){
   if(!remoteGuard()) return;
   const r = S.branches[REMOTE], c = S.branches.main;
-  if(r.head === c.head) { log(`git pull`); say("이미 원격과 같은 위치입니다. (Already up to date)"); return; }
+  if(r.head === c.head) { r.known = r.head; log(`git pull`); say("이미 원격과 같은 위치입니다. (Already up to date)"); render(); return; }
   if(isAncestor(r.head, c.head)) { log(`git pull`); say("원격에 새 역이 없습니다. 내 쪽이 앞서 있으니 <b>올리기</b>를 쓰세요."); return; }
   snap();
+  r.known = r.head;                       // pull = fetch + merge. 앞의 fetch 부분
   if(isAncestor(c.head, r.head)){
     c.head = r.head; c.lane = S.commits[r.head].lane;
     log(`git pull   # fast-forward`);
@@ -461,7 +479,7 @@ function cmdPush(){
     render(); return;
   }
   snap();
-  r.head = c.head; r.lane = c.lane;
+  r.head = c.head; r.known = c.head; r.lane = c.lane;   // 올린 내용은 자동으로 아는 상태가 된다
   log(`git push`);
   say(`내 커밋을 원격에 올렸습니다. <code>${REMOTE}</code> 이름표가 main과 같은 역으로 따라왔습니다.`);
   render();
@@ -502,11 +520,20 @@ function render(){
   // 원격 이름표는 아래 서버 띠에 따로 모은다. 커밋(역)은 한 번만 그린다
   const labels = {}, rlabels = {};
   Object.values(S.branches).forEach(b=>{
-    if(!b.head) return;
+    // 원격 이름표는 서버의 실제 위치(head)가 아니라 내가 아는 위치(known)에 붙는다
+    const at = b.remote ? b.known : b.head;
+    if(!at) return;
     const bag = b.remote ? rlabels : labels;
-    (bag[b.head] = bag[b.head] || []).push(b);
+    (bag[at] = bag[at] || []).push(b);
   });
   const hasBand = Object.keys(rlabels).length > 0;
+
+  // 서버에는 있지만 아직 fetch하지 않은 역
+  const gotten = new Set();
+  Object.values(S.branches).forEach(b=>{
+    ancestors(b.remote ? b.known : b.head).forEach(x=>gotten.add(x));
+  });
+  const unfetched = id => !gotten.has(id);
   const lblW = b => b.name.length*7.6 + 20;                       // 이름표 알약 너비
   const lblExt = b => lblW(b) + (b.name===S.head ? 64 : 8);       // HEAD 뱃지까지 포함한 오른쪽 끝
   const lblRight = list => 26 + Math.max(...list.map(lblExt));
@@ -594,16 +621,16 @@ function render(){
       const d = (a.y===b.y)
         ? `M ${a.x} ${a.y} L ${b.x} ${b.y}`
         : `M ${a.x} ${a.y} C ${a.x+COL_W*0.55} ${a.y}, ${b.x-COL_W*0.55} ${b.y}, ${b.x} ${b.y}`;
-      const key = pid+">"+id;
+      const key = pid+">"+id, soft = live && unfetched(id);   // 아직 안 받은 구간
       const path = el("path",{
         d, fill:"none",
-        stroke: live ? (i===1 ? S.commits[pid].color : c.color) : "#AEB8C4",
-        "stroke-width": live ? 7 : 3,
+        stroke: !live ? "#AEB8C4" : (soft ? REMOTE_COLOR : (i===1 ? S.commits[pid].color : c.color)),
+        "stroke-width": !live ? 3 : (soft ? 4 : 7),
         "stroke-linecap":"round",
-        opacity: live ? 1 : .4,
-        "stroke-dasharray": live ? "none" : "6 6"
+        opacity: live ? (soft ? .45 : 1) : .4,
+        "stroke-dasharray": !live ? "6 6" : (soft ? "5 6" : "none")
       });
-      if(live && !seenEdges.has(key)){
+      if(live && !soft && !seenEdges.has(key)){
         const L = 400;
         path.classList.add("edge-enter");
         path.style.setProperty("--len", L);
@@ -617,27 +644,29 @@ function render(){
 
   // 역
   S.order.forEach(id=>{
-    const c = S.commits[id], p = pos[id], live = reach.has(id);
+    const c = S.commits[id], p = pos[id], live = reach.has(id), soft = live && unfetched(id);
     const g = el("g",{ transform:`translate(${p.x},${p.y})` });
     const gi = el("g",{ style:"transform-box:fill-box;transform-origin:center" });
-    if(live && !seenNodes.has(id)) gi.classList.add("enter");
+    if(live && !soft && !seenNodes.has(id)) gi.classList.add("enter");
     seenNodes.add(id);
     g.appendChild(gi);
 
     gi.appendChild(el("circle",{ r:15, fill:"#fff",
-      stroke: live ? c.color : "#AEB8C4",
+      stroke: !live ? "#AEB8C4" : (soft ? REMOTE_COLOR : c.color),
       "stroke-width": c.merge ? 4 : 5,
-      opacity: live ? 1 : .45,
-      "stroke-dasharray": live ? "none" : "4 4" }));
+      opacity: !live ? .45 : (soft ? .5 : 1),
+      "stroke-dasharray": !live ? "4 4" : (soft ? "5 5" : "none") }));
     if(c.merge) gi.appendChild(el("circle",{ r:7, fill: live ? c.color : "#AEB8C4", opacity: live ? 1 : .45 }));
 
     const h = el("text",{ y:-24, "text-anchor":"middle",
       "font-family":"ui-monospace,Consolas,monospace","font-size":11,"font-weight":700,
-      fill: live ? "#141C26" : "#AEB8C4" });
+      fill: !live ? "#AEB8C4" : (soft ? REMOTE_COLOR : "#141C26"),
+      opacity: soft ? .65 : 1 });
     h.textContent = id;
     g.appendChild(h);
 
     const m = el("text",{ y:-42, "text-anchor":"middle","font-size":11.5,
+      opacity: soft ? .65 : 1,
       fill: live ? "#5B6876" : "#BAC3CD" });
     m.textContent = c.msg.length>13 ? c.msg.slice(0,12)+"…" : c.msg;
     g.appendChild(m);
@@ -781,6 +810,7 @@ $("btnRebase").onclick = ()=>cmdRebase($("selRebase").value);
 const TEAM_MSGS = ["UI 폰트 교체","사운드 볼륨 조절","저장 버그 수정","타이틀 화면 정리"];
 let teamN = 0;
 $("btnTeam").onclick   = ()=>cmdTeamCommit(TEAM_MSGS[teamN++ % TEAM_MSGS.length]);
+$("btnFetch").onclick  = cmdFetch;
 $("btnPull").onclick   = cmdPull;
 $("btnPush").onclick   = cmdPush;
 $("btnUndo").onclick   = cmdUndo;
@@ -832,11 +862,18 @@ const TOUR = [
     body:"내가 기능을 만드는 동안 팀원도 작업을 올립니다. 팀 공용 저장소가 <b>원격(origin)</b>이고, 아래 <b>서버 띠</b>의 <code>origin/main</code> 이름표가 그 위치입니다. 팀원이 커밋하는 상황을 만들어 보겠습니다.",
     act:()=>{ cmdTeamCommit("UI 폰트 교체"); } },
 
-  { sel:".map", title:"원격만 앞서 나갔습니다",
-    body:"<code>origin/main</code>은 새 역으로 갔는데 내 <code>main</code>은 <b>제자리</b>입니다. 팀원이 올린 커밋은 <b>받아오기 전까지 내 저장소에 없습니다</b>." },
+  { sel:".map", title:"서버에만 새 역이 생겼습니다",
+    body:"서버 띠에 <b>흐린 역</b>이 하나 늘었습니다. 팀원이 올린 커밋인데 내 컴퓨터에는 <b>아직 없습니다</b>. <code>origin/main</code> 이름표도 제자리인 게 보이나요 — 그 이름표는 <b>서버의 현재 위치가 아니라 내가 마지막으로 확인한 위치</b>입니다." },
+
+  { sel:"#btnFetch", title:"가져오기 (fetch)",
+    body:"<code>git fetch</code>는 서버에 뭐가 생겼는지 <b>받아오기만</b> 합니다. 흐리던 역이 진해지고 <code>origin/main</code> 이름표가 따라오지만, 내 <code>main</code>은 <b>움직이지 않습니다</b>.",
+    act:()=>{ cmdFetch(); } },
+
+  { sel:".map", title:"받아왔지만 아직 안 합쳤습니다",
+    body:"이제 그 커밋이 내 저장소에 있습니다. 그런데 내 <code>main</code>은 여전히 제자리 — <b>가져온 것과 합치는 것은 다른 일</b>입니다." },
 
   { sel:"#btnPull", title:"받아오기 (pull)",
-    body:"<code>git pull</code>로 원격의 새 역을 내 저장소로 가져옵니다. <code>git fetch</code>(가져오기) + <code>git merge</code>(합치기)를 한 번에 하는 명령입니다.",
+    body:"<code>git pull</code>은 <code>git fetch</code>(가져오기) + <code>git merge</code>(합치기)를 한 번에 하는 명령입니다. 방금 fetch는 끝났으니 남은 <b>합치기</b>가 일어납니다.",
     act:()=>{ cmdPull(); } },
 
   { sel:".map", title:"두 노선이 갈라진 채 뻗었습니다",
@@ -854,7 +891,7 @@ const TOUR = [
     act:()=>{ cmdPush(); } },
 
   { sel:".legend", title:"기호 읽는 법",
-    body:"빈 동그라미는 보통 커밋, 가운데가 찬 동그라미는 병합 커밋, 점선은 rebase 후 버려진 옛 커밋입니다." },
+    body:"빈 동그라미는 보통 커밋, 가운데가 찬 동그라미는 병합 커밋, 회색 점선은 rebase 후 버려진 옛 커밋, 서버 띠 쪽 흐린 점선은 아직 fetch하지 않은 역입니다." },
 
   { sel:"#log", title:"실제 git 명령",
     body:"버튼을 누를 때마다 <b>진짜 터미널에 칠 명령</b>이 여기 쌓입니다. 이 목록을 그대로 Git Bash에 옮겨 치면 같은 결과가 나옵니다." },

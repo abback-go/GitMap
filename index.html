@@ -129,6 +129,10 @@
   .log .e{color:#B02A37}
   .log .n{color:var(--ink-soft)}
   .log .empty{color:var(--ink-soft);font-family:inherit}
+  /* 저장소를 만들 때 한 번만 치는 명령. 아래 기록과 섞이지 않게 흐리게 구분한다 */
+  .log .setup{color:#8A96A4}
+  .log .setup .h{display:block;color:#9AA5B1;font-family:inherit;font-size:11px;font-weight:700;margin-bottom:2px}
+  .log .setup + .c, .log .setup + .e{margin-top:6px;padding-top:6px;border-top:1px dashed var(--rule)}
 
   .steps{font-size:13px;line-height:1.55}
   .steps .cmd{font-family:var(--mono);font-size:12.5px;font-weight:700;display:block;margin-bottom:5px}
@@ -850,10 +854,14 @@ function render(){
     if([...s.options].some(o=>o.value===keep)) s.value = keep;
   });
 
+  // 저장소를 만들 때 한 번만 치는 명령. 이게 없으면 아래 기록을 그대로 옮겨 쳐도
+  // 커밋할 저장소가 없고 push할 원격도 없다. 매번 하는 일이 아님을 형태로 보여준다
+  const SETUP = `<div class="setup"><span class="h"># 처음 한 번만 — 저장소를 만들 때</span>`
+    + `$ git init\n$ git remote add origin https://github.com/팀/저장소.git</div>`;
   const lg = $("log");
-  lg.innerHTML = S.log.length
+  lg.innerHTML = SETUP + (S.log.length
     ? S.log.map(l=>`<div class="${l.k || "c"}">${esc(l.t)}</div>`).join("")
-    : `<div class="empty">아직 실행한 명령이 없습니다.</div>`;
+    : `<div class="empty">아직 실행한 명령이 없습니다.</div>`);
   lg.scrollTop = lg.scrollHeight;
 
   const box = document.querySelector(".map-scroll");
@@ -1013,7 +1021,7 @@ const TOUR = [
     body:"빈 동그라미는 보통 커밋, 가운데가 찬 동그라미는 병합 커밋, 회색 점선은 rebase 후 버려진 옛 커밋, 서버 띠 쪽 흐린 점선은 아직 fetch하지 않은 역입니다." },
 
   { sel:"#log", title:"실제 git 명령",
-    body:"버튼을 누를 때마다 <b>진짜 터미널에 칠 명령</b>이 여기 쌓입니다. 이 목록을 그대로 Git Bash에 옮겨 치면 같은 결과가 나옵니다. <code>git add .</code>은 <b>바꾼 파일을 담는</b> 단계, <code>git commit</code>은 <b>담긴 것을 저장하는</b> 단계라 항상 짝으로 나옵니다." },
+    body:"버튼을 누를 때마다 <b>진짜 터미널에 칠 명령</b>이 여기 쌓입니다. 이 목록을 그대로 Git Bash에 옮겨 치면 같은 결과가 나옵니다. 맨 위 흐린 두 줄(<code>git init</code>, <code>git remote add</code>)은 <b>저장소를 만들 때 한 번만</b> 치는 것이고, <code>git add .</code>과 <code>git commit</code>은 <b>담고 · 저장하는</b> 짝이라 매번 함께 나옵니다." },
 
   { sel:"#modes", title:"시나리오로 비교하기",
     body:"<b>시나리오 · Merge</b>와 <b>시나리오 · Rebase</b>는 같은 상황을 두 방식으로 처리합니다. rebase 쪽은 해시가 바뀌고 옛 커밋이 점선으로 남는데, 그게 <b>push한 브랜치에 rebase를 쓰면 안 되는 이유</b>입니다." },

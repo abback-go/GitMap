@@ -58,6 +58,7 @@ S = {
   order:   [id, ...],        // 생성 순서 = 위상 정렬 순서
   branches:{ [name]: { name, head, lane, color, remote?, known? } },
   head:    "main",           // 현재 브랜치 이름 (원격은 절대 들어가지 않음)
+  staged:  null,             // git add로 담긴 변경 설명. 커밋하면 비워진다
   laneNext: 0,
   log:     [{ t, k }]        // k: 없으면 명령, "e" 거절/오류, "n" 명령 아닌 설명
 }
@@ -75,7 +76,8 @@ S = {
 
 | 함수 | 동작 |
 |---|---|
-| `cmdCommit(msg)` | 현재 브랜치에 커밋. `msg` 비면 거절 |
+| `cmdAdd()` | 입력칸 내용을 담는다(`git add .`). `S.staged`에 들어간다 |
+| `cmdCommit(msg, auto)` | 담긴 게 없으면 **거절**. `auto=true`면 담기까지 한 번에 (시나리오·자동 안내용) |
 | `cmdBranch(name)` / `cmdSwitch(name)` | 브랜치 생성(+이동) · 이동 |
 | `cmdMerge(name)` / `cmdRebase(name)` | 병합 · 재배치 |
 | `cmdTeamCommit(msg)` | 팀원이 `origin/main`에 커밋 (내 브랜치도 `known`도 안 움직임) |

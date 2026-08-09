@@ -111,6 +111,13 @@
     background:#FFF4F8;border:1.5px solid #FAD3E1;color:#7A1038;min-height:44px
   }
   .note code{font-family:var(--mono);font-size:12px;background:#fff;padding:1px 5px;border-radius:4px}
+  /* 담긴 변경(스테이징). 커밋 전에 무엇이 담겼는지 보여주는 자리 */
+  .staged{
+    display:flex;align-items:center;gap:8px;margin:0 0 8px;padding:7px 10px;
+    border:1.5px dashed #7FB069;border-radius:9px;background:#F3F8F0;font-size:12.5px
+  }
+  .staged .k{font-size:10.5px;font-weight:800;letter-spacing:.06em;color:#4A7A38;white-space:nowrap}
+  .staged span:last-child{color:var(--ink);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
   .log{
     max-height:210px;overflow:auto;font-family:var(--mono);font-size:12px;line-height:1.7;
@@ -242,8 +249,15 @@
       <div id="freePanel">
         <h2>명령</h2>
         <div class="row" style="margin:8px 0 6px">
-          <input type="text" id="msg" placeholder="커밋 메시지" value="플레이어 이동 구현">
-          <button class="act" id="btnCommit">커밋</button>
+          <input type="text" id="msg" placeholder="무엇을 했나요" value="플레이어 이동 구현">
+          <button class="act ghost" id="btnAdd">담기 · add</button>
+        </div>
+        <div class="staged" id="stagedBox" hidden>
+          <span class="k">담긴 변경</span>
+          <span id="stagedTxt"></span>
+        </div>
+        <div class="row" style="margin-bottom:6px">
+          <button class="act" id="btnCommit" style="flex:1">커밋 · commit</button>
         </div>
         <div class="row" style="margin-bottom:6px">
           <input type="text" id="bname" placeholder="새 브랜치 이름" value="feature-jump">
@@ -331,7 +345,7 @@ function textW(s, weight){
 /* ───────── 상태 ───────── */
 // withRemote=false면 원격 없이 시작한다 (시나리오 모드는 원격을 다루지 않는다)
 function fresh(withRemote){
-  S = { commits:{}, order:[], branches:{}, head:"main", laneNext:0, log:[] };
+  S = { commits:{}, order:[], branches:{}, head:"main", laneNext:0, log:[], staged:null };
   makeBranch("main");
   doCommit("최초 커밋");
   // 원격은 같은 역에서 출발한다. lane 번호를 새로 쓰지 않아 로컬 브랜치 색이 밀리지 않는다
@@ -380,12 +394,34 @@ function doCommit(msg){
   b.head = id;
   return id;
 }
-function cmdCommit(msg){
-  msg = (msg || "").trim() || "작업 내용 저장";
+// git add — 바꾼 것을 "담는" 단계. 담기지 않은 건 커밋되지 않는다
+function doStage(msg){ S.staged = msg; log(`git add .`); }
+function cmdAdd(){
+  const msg = ($("msg").value || "").trim();
+  if(S.staged) return say(`이미 <b>${esc(S.staged)}</b> 이(가) 담겨 있습니다. <b>커밋</b>으로 저장하세요.`);
+  if(!msg) return say("담을 변경이 없습니다. 무엇을 했는지 먼저 적으세요.");
   snap();
+  doStage(msg);
+  $("msg").value = "";
+  say(`<b>${esc(msg)}</b> 을(를) 담았습니다. 아직 저장된 건 아닙니다 — <b>커밋</b>을 눌러야 역이 생깁니다.`);
+  render();
+}
+// auto=true면 담기까지 한 번에 한다 (시나리오·자동 안내용)
+function cmdCommit(msg, auto){
+  if(!S.staged){
+    if(!auto){
+      const typed = ($("msg").value || "").trim();
+      if(typed) log(`git commit -m "${typed}"   # nothing added`, "e");
+      return say(`담긴 변경이 없어 커밋할 게 없습니다. 먼저 <b>담기 · add</b>를 누르세요. 실제 git도 <code>no changes added to commit</code>이라고 답합니다.`);
+    }
+    snap();
+    doStage((msg || "").trim() || "작업 내용 저장");
+  } else snap();
+  msg = S.staged;
+  S.staged = null;
   const id = doCommit(msg);
   log(`git commit -m "${msg}"`);
-  say(`<b>${esc(S.head)}</b> 노선 끝에 역 <code>${id}</code> 이(가) 새로 생겼습니다. HEAD도 함께 앞으로 이동합니다.`);
+  say(`<b>${esc(S.head)}</b> 노선 끝에 역 <code>${id}</code> 이(가) 새로 생겼습니다. 담겼던 변경이 저장되고 HEAD도 함께 앞으로 이동합니다.`);
   render();
 }
 function cmdBranch(name){
@@ -800,6 +836,9 @@ function render(){
 
   // 사이드 UI
   $("nowBranch").textContent = S.head;
+  $("stagedBox").hidden = !S.staged;
+  if(S.staged) $("stagedTxt").textContent = S.staged;
+  // 커밋 버튼은 일부러 막지 않는다 — 담지 않고 눌러 거절당해 보는 게 이 모델의 핵심이다
   ["selSwitch","selMerge","selRebase"].forEach(k=>{
     const s = $(k), keep = s.value;
     s.innerHTML = "";
@@ -828,24 +867,24 @@ const SCEN = {
   merge: {
     title:"기능 브랜치를 만들고 merge로 합치기",
     steps:[
-      { cmd:'git commit -m "적 AI 추가"', run:()=>cmdCommit("적 AI 추가") },
+      { cmd:'git commit -m "적 AI 추가"', run:()=>cmdCommit("적 AI 추가", true) },
       { cmd:'git switch -c feature-jump', run:()=>cmdBranch("feature-jump") },
-      { cmd:'git commit -m "점프 물리"', run:()=>cmdCommit("점프 물리") },
-      { cmd:'git commit -m "이단 점프"', run:()=>cmdCommit("이단 점프") },
+      { cmd:'git commit -m "점프 물리"', run:()=>cmdCommit("점프 물리", true) },
+      { cmd:'git commit -m "이단 점프"', run:()=>cmdCommit("이단 점프", true) },
       { cmd:'git switch main', run:()=>cmdSwitch("main") },
-      { cmd:'git commit -m "UI 폰트 교체"', run:()=>cmdCommit("UI 폰트 교체") },
+      { cmd:'git commit -m "UI 폰트 교체"', run:()=>cmdCommit("UI 폰트 교체", true) },
       { cmd:'git merge feature-jump', run:()=>cmdMerge("feature-jump") }
     ]
   },
   rebase: {
     title:"같은 상황을 rebase로 합치기",
     steps:[
-      { cmd:'git commit -m "적 AI 추가"', run:()=>cmdCommit("적 AI 추가") },
+      { cmd:'git commit -m "적 AI 추가"', run:()=>cmdCommit("적 AI 추가", true) },
       { cmd:'git switch -c feature-jump', run:()=>cmdBranch("feature-jump") },
-      { cmd:'git commit -m "점프 물리"', run:()=>cmdCommit("점프 물리") },
-      { cmd:'git commit -m "이단 점프"', run:()=>cmdCommit("이단 점프") },
+      { cmd:'git commit -m "점프 물리"', run:()=>cmdCommit("점프 물리", true) },
+      { cmd:'git commit -m "이단 점프"', run:()=>cmdCommit("이단 점프", true) },
       { cmd:'git switch main', run:()=>cmdSwitch("main") },
-      { cmd:'git commit -m "UI 폰트 교체"', run:()=>cmdCommit("UI 폰트 교체") },
+      { cmd:'git commit -m "UI 폰트 교체"', run:()=>cmdCommit("UI 폰트 교체", true) },
       { cmd:'git switch feature-jump', run:()=>cmdSwitch("feature-jump") },
       { cmd:'git rebase main', run:()=>cmdRebase("main") },
       { cmd:'git switch main', run:()=>cmdSwitch("main") },
@@ -877,6 +916,7 @@ function setMode(m){
 }
 
 /* ───────── 연결 ───────── */
+$("btnAdd").onclick    = cmdAdd;
 $("btnCommit").onclick = ()=>cmdCommit($("msg").value.trim());
 $("btnBranch").onclick = ()=>cmdBranch($("bname").value.trim());
 $("btnSwitch").onclick = ()=>cmdSwitch($("selSwitch").value);
@@ -893,7 +933,7 @@ $("btnReset").onclick  = ()=>{ seenNodes=new Set(); seenEdges=new Set(); fresh()
 $("btnNext").onclick   = ()=>{ if(stepIdx<scenario.steps.length){ scenario.steps[stepIdx].run(); stepIdx++; drawSteps(); } };
 $("btnRestart").onclick= ()=>setMode(mode);
 $("modes").onclick = e=>{ if(e.target.dataset.mode) setMode(e.target.dataset.mode); };
-$("msg").onkeydown = e=>{ if(e.key==="Enter") $("btnCommit").click(); };
+$("msg").onkeydown = e=>{ if(e.key==="Enter") $("btnAdd").click(); };
 $("bname").onkeydown = e=>{ if(e.key==="Enter") $("btnBranch").click(); };
 
 /* ───────── 자동 안내 ───────── */
@@ -908,8 +948,8 @@ const TOUR = [
     body:"HEAD가 어느 브랜치에 있는지 여기서 확인합니다. 커밋을 만들면 <b>이 브랜치의 끝</b>에 붙습니다. 지금은 <code>main</code>입니다." },
 
   { sel:"#msg", title:"커밋 만들기",
-    body:"메시지를 적고 <b>커밋</b> 버튼을 누르면 역이 하나 늘어납니다. 직접 눌러보겠습니다.",
-    act:()=>{ $("msg").value="적 AI 추가"; cmdCommit("적 AI 추가"); } },
+    body:"커밋은 <b>두 단계</b>입니다. 무엇을 했는지 적고 <b>담기 · add</b>로 담은 뒤, <b>커밋</b>으로 저장합니다. 담지 않고 커밋하면 실제 git도 <code>no changes added to commit</code>이라며 거절합니다. 여기서는 두 단계를 한 번에 해보겠습니다.",
+    act:()=>{ $("msg").value="적 AI 추가"; cmdCommit("적 AI 추가", true); } },
 
   { sel:".map", title:"역이 하나 늘었습니다",
     body:"선로가 오른쪽으로 한 칸 뻗고 <code>main</code> 이름표와 <code>HEAD</code>가 같이 따라왔습니다. 커밋은 <b>지우는 게 아니라 계속 쌓이는</b> 기록입니다." },
@@ -927,7 +967,7 @@ const TOUR = [
 
   { sel:".map", title:"기능 브랜치에서 두 번 작업",
     body:"이제 커밋하면 <code>feature-jump</code> 쪽으로 선로가 뻗습니다. main은 건드리지 않은 채로 아래쪽에 새 노선이 생기는 걸 보세요.",
-    act:()=>{ cmdCommit("점프 물리"); tLater(()=>cmdCommit("이단 점프"),700); } },
+    act:()=>{ cmdCommit("점프 물리", true); tLater(()=>cmdCommit("이단 점프", true),700); } },
 
   { sel:"#btnPush", title:"기능 노선도 서버에 올리기",
     body:"<code>feature-jump</code>는 <b>지금까지 내 컴퓨터에만</b> 있었습니다. <code>git push -u origin feature-jump</code>로 올리면 서버 띠에 <code>origin/feature-jump</code> 이름표가 <b>새로</b> 생깁니다. 새 브랜치는 이렇게 올려야 팀원이 볼 수 있습니다.",
@@ -973,7 +1013,7 @@ const TOUR = [
     body:"빈 동그라미는 보통 커밋, 가운데가 찬 동그라미는 병합 커밋, 회색 점선은 rebase 후 버려진 옛 커밋, 서버 띠 쪽 흐린 점선은 아직 fetch하지 않은 역입니다." },
 
   { sel:"#log", title:"실제 git 명령",
-    body:"버튼을 누를 때마다 <b>진짜 터미널에 칠 명령</b>이 여기 쌓입니다. 이 목록을 그대로 Git Bash에 옮겨 치면 같은 결과가 나옵니다." },
+    body:"버튼을 누를 때마다 <b>진짜 터미널에 칠 명령</b>이 여기 쌓입니다. 이 목록을 그대로 Git Bash에 옮겨 치면 같은 결과가 나옵니다. <code>git add .</code>은 <b>바꾼 파일을 담는</b> 단계, <code>git commit</code>은 <b>담긴 것을 저장하는</b> 단계라 항상 짝으로 나옵니다." },
 
   { sel:"#modes", title:"시나리오로 비교하기",
     body:"<b>시나리오 · Merge</b>와 <b>시나리오 · Rebase</b>는 같은 상황을 두 방식으로 처리합니다. rebase 쪽은 해시가 바뀌고 옛 커밋이 점선으로 남는데, 그게 <b>push한 브랜치에 rebase를 쓰면 안 되는 이유</b>입니다." },

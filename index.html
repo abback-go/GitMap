@@ -667,9 +667,9 @@ function render(){
       const path = el("path",{
         d, fill:"none",
         stroke: !live ? "#AEB8C4" : (soft ? REMOTE_COLOR : (i===1 ? S.commits[pid].color : c.color)),
-        "stroke-width": !live ? 3 : (soft ? 4 : 7),
+        "stroke-width": !live ? 3 : (soft ? 5 : 7),
         "stroke-linecap":"round",
-        opacity: live ? (soft ? .45 : 1) : .4,
+        opacity: live ? (soft ? .7 : 1) : .4,
         "stroke-dasharray": !live ? "6 6" : (soft ? "5 6" : "none")
       });
       if(live && !soft && !seenEdges.has(key)){
@@ -696,19 +696,19 @@ function render(){
     gi.appendChild(el("circle",{ r:15, fill:"#fff",
       stroke: !live ? "#AEB8C4" : (soft ? REMOTE_COLOR : c.color),
       "stroke-width": c.merge ? 4 : 5,
-      opacity: !live ? .45 : (soft ? .5 : 1),
+      opacity: !live ? .45 : (soft ? .8 : 1),
       "stroke-dasharray": !live ? "4 4" : (soft ? "5 5" : "none") }));
     if(c.merge) gi.appendChild(el("circle",{ r:7, fill: live ? c.color : "#AEB8C4", opacity: live ? 1 : .45 }));
 
     const h = el("text",{ y:-24, "text-anchor":"middle",
       "font-family":"ui-monospace,Consolas,monospace","font-size":11,"font-weight":700,
       fill: !live ? "#AEB8C4" : (soft ? REMOTE_COLOR : "#141C26"),
-      opacity: soft ? .65 : 1 });
+      opacity: soft ? .9 : 1 });
     h.textContent = id;
     g.appendChild(h);
 
     const m = el("text",{ y:-42, "text-anchor":"middle","font-size":11.5,
-      opacity: soft ? .65 : 1,
+      opacity: soft ? .9 : 1,
       fill: live ? "#5B6876" : "#BAC3CD" });
     m.textContent = c.msg.length>13 ? c.msg.slice(0,12)+"…" : c.msg;
     g.appendChild(m);
@@ -961,7 +961,7 @@ let tSnap = [];              // 단계 진입 시점의 노선도 상태
 // (예약된 커밋이 안내를 닫은 뒤에 실행되던 문제)
 // 건너뛰는 중에는 예약을 기다리지 않고 바로 실행한다.
 // 안 그러면 뒤이은 tClear에 지워져 그 단계의 두 번째 동작이 통째로 빠진다
-let tJumping = false;
+let tJumping = false, tSpot = null;   // tSpot: 동작 뒤 스포트라이트를 옮길 대상
 const tLater = (fn, ms) => { if(tJumping) fn(); else tActs.push(setTimeout(fn, ms)); };
 const tClear = () => { tActs.forEach(clearTimeout); tActs = []; };
 
@@ -1044,6 +1044,7 @@ function tourHash(){
 
 function tourShow(){
   tClear(); cancelAnimationFrame(tRaf);
+  tSpot = null;                      // 스포트라이트는 일단 이 단계가 가리키는 곳
   const s = TOUR[tIdx];
   // 이 단계에 처음 오면 상태를 저장하고, 다시 오면(특히 '이전') 그때 상태로 되돌린다
   if(tSnap[tIdx]) tourRestore(tSnap[tIdx]);
@@ -1063,7 +1064,13 @@ function tourShow(){
   tourHash();
   tourPlace();
   // 단계 진입 상태로 되돌린 뒤 실행하므로 중복 생성되지 않는다
-  if(s.act) tLater(()=>{ s.act(); tourPlace(); }, 550);
+  // 버튼을 누른 뒤에는 스포트라이트를 노선도로 옮긴다. 안 그러면 방금 바뀐 그림이
+  // 어두운 막 아래 깔려 무엇이 달라졌는지 안 보인다 (12단계에서 특히 심했다)
+  if(s.act) tLater(()=>{
+    s.act();
+    if(s.sel !== ".map"){ tSpot = ".map"; }
+    tourPlace();
+  }, 550);
   const dur = Math.min(9500, 3600 + s.body.replace(/<[^>]+>/g,"").length * 55) + (s.act ? 1400 : 0);
   tourTimer(dur);
 }
@@ -1078,7 +1085,8 @@ function tourPlace(){
   if(wide) document.body.style.removeProperty("--tour-pad");
   else      document.body.style.setProperty("--tour-pad", (tipH + 60) + "px");
 
-  const el = s.sel ? document.querySelector(s.sel) : null;
+  const sel = tSpot || s.sel;
+  const el = sel ? document.querySelector(sel) : null;
   if(el){
     // 넓은 화면은 화면 안에만 들어오면 되고, 좁은 화면은 말풍선 위까지만 허용된다
     const top = 12, bottom = wide ? innerHeight - 12 : innerHeight - tipH - 22 - 12;

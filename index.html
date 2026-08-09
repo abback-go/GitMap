@@ -116,6 +116,7 @@
     display:flex;align-items:center;gap:8px;margin:0 0 8px;padding:7px 10px;
     border:1.5px dashed #7FB069;border-radius:9px;background:#F3F8F0;font-size:12.5px
   }
+  .staged[hidden]{display:none}     /* .staged의 display:flex가 [hidden] 기본값을 덮는다 */
   .staged .k{font-size:10.5px;font-weight:800;letter-spacing:.06em;color:#4A7A38;white-space:nowrap}
   .staged span:last-child{color:var(--ink);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
@@ -282,6 +283,9 @@
         <h2 style="margin-top:14px">원격 저장소 (origin)</h2>
         <div class="row" style="margin:8px 0 6px">
           <button class="act ghost" id="btnTeam" style="flex:1">팀원이 커밋</button>
+        </div>
+        <div class="row" style="margin-bottom:6px">
+          <button class="act ghost" id="btnPR" style="flex:1">PR 병합 (GitHub에서)</button>
         </div>
         <div class="row" style="margin-bottom:6px">
           <button class="act ghost" id="btnFetch" style="flex:1">가져오기 · fetch</button>
@@ -533,6 +537,26 @@ function cmdFetch(){
   say(`서버의 새 역을 <b>내려받았습니다</b>. <code>${esc(behind.map(r=>r.name).join(", "))}</code> 이름표가 따라왔지만 내 브랜치는 <b>제자리</b>입니다 — <code>fetch</code>는 가져오기만 하고 <b>합치지 않습니다</b>.`);
   render();
 }
+// PR 병합 — 합치는 일이 내 컴퓨터가 아니라 서버에서 일어난다.
+// 로컬 브랜치도 HEAD도 움직이지 않고, 결과는 fetch/pull로 받아와야 한다
+function cmdPR(){
+  if(!remoteGuard()) return;
+  const rm = remoteOf("main");
+  if(!rm) return say("서버에 <code>main</code>이 없습니다.");
+  const feat = remotes().filter(r => r !== rm);
+  if(!feat.length) return say("서버에 올라간 기능 브랜치가 없습니다. 기능 브랜치에서 <b>올리기</b>를 먼저 하세요.");
+  const src = feat.find(r => !isAncestor(r.head, rm.head));
+  if(!src) return say("서버의 기능 브랜치가 이미 <code>origin/main</code>에 합쳐져 있습니다.");
+  snap();
+  const id = hash();
+  S.commits[id] = { id, parents:[rm.head, src.head], lane:rm.lane,
+                    msg:`Merge ${src.name.slice(RPFX.length)}`, color:rm.color, merge:true };
+  S.order.push(id);
+  rm.head = id;                       // 서버만 앞으로 간다. known은 그대로 = 아직 안 받은 상태
+  log(`# GitHub에서 Pull Request를 병합했습니다 (${src.name.slice(RPFX.length)} → main)`, "n");
+  say(`<b>서버에서</b> 병합이 일어났습니다. 환승역 <code>${id}</code> 은(는) 서버 띠 쪽에 생겼고 <b>내 컴퓨터에는 아직 없습니다</b> — <code>origin/main</code> 이름표도 제자리입니다. <b>가져오기</b>나 <b>받아오기</b>로 가져와야 합니다.`);
+  render();
+}
 function cmdPull(){
   if(!remoteGuard()) return;
   const c = cur(), r = remoteOf(c.name);
@@ -770,7 +794,10 @@ function render(){
       "stroke-width": c.merge ? 4 : 5,
       opacity: !live ? .45 : (soft ? .8 : 1),
       "stroke-dasharray": !live ? "4 4" : (soft ? "5 5" : "none") }));
-    if(c.merge) gi.appendChild(el("circle",{ r:7, fill: live ? c.color : "#AEB8C4", opacity: live ? 1 : .45 }));
+    // 가운데 점도 바깥 원과 같은 상태로 그린다 (안 그러면 흐린 역인데 점만 원색으로 남는다)
+    if(c.merge) gi.appendChild(el("circle",{ r:7,
+      fill: !live ? "#AEB8C4" : (soft ? REMOTE_COLOR : c.color),
+      opacity: !live ? .45 : (soft ? .8 : 1) }));
 
     const h = el("text",{ y:-24, "text-anchor":"middle",
       "font-family":"ui-monospace,Consolas,monospace","font-size":11,"font-weight":700,
@@ -933,6 +960,7 @@ $("btnRebase").onclick = ()=>cmdRebase($("selRebase").value);
 const TEAM_MSGS = ["UI 폰트 교체","사운드 볼륨 조절","저장 버그 수정","타이틀 화면 정리"];
 let teamN = 0;
 $("btnTeam").onclick   = ()=>cmdTeamCommit(TEAM_MSGS[teamN++ % TEAM_MSGS.length]);
+$("btnPR").onclick     = cmdPR;
 $("btnFetch").onclick  = cmdFetch;
 $("btnPull").onclick   = cmdPull;
 $("btnPush").onclick   = cmdPush;

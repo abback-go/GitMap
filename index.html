@@ -90,7 +90,9 @@
     position:absolute;left:12px;padding:1px 7px;border-radius:7px;
     font-size:11.5px;font-weight:700;letter-spacing:.2px;pointer-events:none
   }
-  .zone-local{color:#8A96A4;background:rgba(255,255,255,.88)}
+  /* 두 구역 머리글은 같은 색으로 둔다. #8A96A4는 흰 바탕에서 대비 3.01로 기준(4.5) 미달이었고,
+     아래 "팀 공용 서버"만 진해 두 구역이 대등해 보이지 않았다 */
+  .zone-local{color:var(--ink-soft);background:rgba(255,255,255,.88)}
   .zone-remote{color:var(--ink-soft);background:#F1F5FA}
   svg{display:block}
   .legend{
@@ -204,9 +206,11 @@
   /* 명령이 터미널에 뿌린 출력. $도 #도 아니라 옮겨 칠 대상이 아니다 */
   .log .o{color:var(--ink-soft);opacity:.8}
   .log .empty{color:var(--ink-soft);font-family:inherit}
-  /* 저장소를 만들 때 한 번만 치는 명령. 아래 기록과 섞이지 않게 흐리게 구분한다 */
-  .log .setup{color:#8A96A4}
-  .log .setup .h{display:block;color:#9AA5B1;font-family:inherit;font-size:11px;font-weight:700;margin-bottom:2px}
+  /* 저장소를 만들 때 한 번만 치는 명령. 아래 기록과 섞이지 않게 구분하되 읽히긴 해야 한다 —
+     옮겨 적어야 하는 줄인데 #8A96A4는 이 배경에서 대비 2.63으로 기준(4.5) 미달이었다.
+     아래 명령은 var(--ink)라 훨씬 진하므로 색을 올려도 "흐린 묶음"으로 여전히 읽힌다 */
+  .log .setup{color:var(--ink-soft)}
+  .log .setup .h{display:block;color:#626D7A;font-family:inherit;font-size:11px;font-weight:700;margin-bottom:2px}
   .log .setup + .c, .log .setup + .e{margin-top:6px;padding-top:6px;border-top:1px dashed var(--rule)}
 
   .steps{font-size:13px;line-height:1.55}
@@ -432,6 +436,16 @@
 <script>
 "use strict";
 const COLORS = ["#0052A4","#EF7C1C","#00A84D","#996CAC","#00A5DE","#B5651D"];
+// 이름표 알약 글씨색. 밝은 노선 위 흰 글씨는 대비가 4.5:1에 한참 못 미친다
+// (주황 2.77 · 하늘 2.82 · 초록 3.13 · 보라 4.12). 노선 색은 은유의 핵심이라 그대로 두고
+// 글씨만 명암으로 고른다 — 실제 지하철 노선도도 밝은 노선에는 검은 글씨를 쓴다
+const relLum = hex => {
+  const ch = i => { const c = parseInt(hex.slice(i, i+2), 16) / 255;
+    return c <= 0.03928 ? c/12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+  return 0.2126*ch(1) + 0.7152*ch(3) + 0.0722*ch(5);
+};
+// 검정 대비 (L+.05)/.05 와 흰색 대비 1.05/(L+.05) 중 큰 쪽
+const pillText = c => { const L = relLum(c) + 0.05; return (L / 0.05) >= (1.05 / L) ? "#000" : "#fff"; };
 const COL_W = 112, ROW_H0 = 104, PAD_X = 66, PAD_Y = 66, LBL_GAP = 23;
 // 노선도 아래 "팀 공용 서버" 띠. 원격 이름표만 여기 모아 내 컴퓨터와 경계를 긋는다
 const BAND_H = 58, BAND_GAP = 10, BAND_CAP = 22;
@@ -1148,7 +1162,7 @@ function render(){
       gb.appendChild(el("rect",{ x:26, y:y-10, width:w, height:20, rx:10,
         fill: b.color, stroke: on ? "#141C26" : "none", "stroke-width": on ? 2.5 : 0 }));
       const t = el("text",{ x:26+w/2, y:y+4, "text-anchor":"middle","font-size":11.5,
-        "font-weight": on ? 800 : 600, fill:"#fff" });
+        "font-weight": on ? 800 : 600, fill:pillText(b.color) });
       t.textContent = b.name;
       gb.appendChild(t);
       g.appendChild(gb);

@@ -58,8 +58,27 @@
   /* 묶음 안 규칙보다 뒤에 와야 선택 상태가 덮이지 않는다 */
   .modes .group button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
 
-  .grid{display:grid;grid-template-columns:1fr 330px;gap:18px;align-items:start}
-  @media (max-width:900px){ .grid{grid-template-columns:1fr} }
+  /* 노선도(1행)와 진행 순서·로그(2행)가 왼쪽에 쌓이고, 조작판이 두 행에 걸친다.
+     예전처럼 조작판 한 열에 다 넣으면 세로 862px가 되어 로그가 화면 밖으로 밀렸다 */
+  .grid{
+    display:grid;grid-template-columns:1fr 330px;grid-template-rows:auto auto;
+    gap:18px;align-items:start
+  }
+  .panel.map    {grid-column:1;grid-row:1}
+  .panel.work   {grid-column:1;grid-row:2}
+  .panel.console{grid-column:2;grid-row:1 / span 2}
+  /* 조작판을 넓혀 두 묶음을 나란히 세운다. 1400px 미만에서는 노선도 폭을 지킨다
+     — Rebase의 그래프가 715px까지 뻗어 좁히면 가로 스크롤이 생긴다 */
+  /* 조작판을 넓히면 그만큼 노선도가 줄어든다. .wrap 상한(1240px)을 같이 올리지 않으면
+     Rebase의 그래프(715px)가 안 들어가 가로 스크롤이 생긴다 */
+  @media (min-width:1400px){
+    .wrap{max-width:1500px}
+    .grid{grid-template-columns:1fr 560px}
+  }
+  @media (max-width:900px){
+    .grid{grid-template-columns:1fr}
+    .panel.map,.panel.work,.panel.console{grid-column:1;grid-row:auto}
+  }
 
   .panel{background:var(--paper-2);border:1.5px solid var(--rule);border-radius:14px;box-shadow:var(--shadow)}
 
@@ -110,7 +129,23 @@
 
   /* ── 조작판 ── */
   .console{padding:16px;display:flex;flex-direction:column;gap:14px}
-  .console h2{
+  /* 기본은 한 열. 1400px 이상에서만 두 열로 갈라진다 */
+  #freePanel{display:grid;grid-template-columns:1fr;align-items:start}
+  /* 한 열로 쌓일 때만 두 묶음 사이를 띄운다. 두 열이면 나란히 서므로 필요 없다 */
+  #freePanel .cmdcol + .cmdcol h2{margin-top:14px}
+  /* ── 진행 순서 + 실행한 명령 ── */
+  /* stepPanel이 display:none인 자유 모드에서는 로그가 자리를 다 쓴다 (JS 분기 불필요) */
+  .work{padding:16px;display:flex;gap:18px;align-items:flex-start}
+  .work #stepPanel{flex:0 0 296px}
+  .work .logwrap{flex:1;min-width:0}
+  @media (max-width:900px){ .work{flex-direction:column} .work #stepPanel{flex:none;width:100%} }
+  /* 조작판 두 열 — 위 .grid 쪽 미디어 쿼리에 두면 뒤에 오는 #freePanel 기본 규칙에 덮인다 */
+  @media (min-width:1400px){
+    #freePanel{grid-template-columns:1fr 1fr;gap:0 14px}
+    #freePanel .span2{grid-column:1 / -1}
+    #freePanel .cmdcol + .cmdcol h2{margin-top:0}
+  }
+  .console h2, .work h2{
     margin:0;font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;
     color:var(--ink-soft)
   }
@@ -310,57 +345,69 @@
 
       <div class="note" id="note">브랜치를 만들고 커밋해보세요.</div>
 
+      <!-- 넓은 창에서는 두 묶음이 나란히 선다. 한 줄씩 쌓으면 조작판만 862px가 되어
+           아래 로그가 화면 밖으로 밀렸다 (1600×1000에서 문서 높이 1023px) -->
       <div id="freePanel">
-        <h2>명령</h2>
-        <div class="row" style="margin:8px 0 6px">
-          <input type="text" id="msg" placeholder="무엇을 했나요" value="플레이어 이동 구현">
-          <button class="act ghost" id="btnAdd">담기 · add</button>
-        </div>
-        <div class="staged" id="stagedBox" role="status" aria-live="polite" hidden>
-          <span class="k">담긴 변경</span>
-          <span id="stagedTxt"></span>
-        </div>
-        <div class="row" style="margin-bottom:6px">
-          <button class="act" id="btnCommit" style="flex:1">커밋 · commit</button>
-        </div>
-        <div class="row" style="margin-bottom:6px">
-          <input type="text" id="bname" placeholder="새 브랜치 이름" value="feature-jump">
-          <button class="act" id="btnBranch">브랜치 + 이동</button>
-        </div>
-        <div class="row" style="margin-bottom:6px">
-          <select id="selSwitch"></select>
-          <button class="act ghost" id="btnSwitch">이동</button>
-        </div>
-        <div class="row" style="margin-bottom:6px">
-          <select id="selMerge"></select>
-          <button class="act ghost" id="btnMerge">병합</button>
-        </div>
-        <div class="row" style="margin-bottom:10px">
-          <select id="selRebase"></select>
-          <button class="act ghost" id="btnRebase">리베이스</button>
-        </div>
-        <h2 style="margin-top:14px">원격 저장소 (origin)</h2>
-        <div class="row" style="margin:8px 0 6px">
-          <button class="act ghost" id="btnTeam" style="flex:1">팀원이 커밋</button>
-        </div>
-        <div class="row" style="margin-bottom:6px">
-          <select id="selPR" aria-label="PR로 합칠 서버의 기능 브랜치"></select>
-          <button class="act ghost" id="btnPR">PR 병합</button>
-        </div>
-        <div class="row" style="margin-bottom:6px">
-          <button class="act ghost" id="btnFetch" style="flex:1">가져오기 · fetch</button>
-        </div>
-        <div class="row" style="margin-bottom:10px">
-          <button class="act ghost" id="btnPull" style="flex:1">받아오기 · pull</button>
-          <button class="act ghost" id="btnPush" style="flex:1">올리기 · push</button>
+        <div class="cmdcol">
+          <h2>명령</h2>
+          <div class="row" style="margin:8px 0 6px">
+            <input type="text" id="msg" placeholder="무엇을 했나요" value="플레이어 이동 구현">
+            <button class="act ghost" id="btnAdd">담기 · add</button>
+          </div>
+          <div class="staged" id="stagedBox" role="status" aria-live="polite" hidden>
+            <span class="k">담긴 변경</span>
+            <span id="stagedTxt"></span>
+          </div>
+          <div class="row" style="margin-bottom:6px">
+            <button class="act" id="btnCommit" style="flex:1">커밋 · commit</button>
+          </div>
+          <div class="row" style="margin-bottom:6px">
+            <input type="text" id="bname" placeholder="새 브랜치 이름" value="feature-jump">
+            <button class="act" id="btnBranch">브랜치 + 이동</button>
+          </div>
+          <div class="row" style="margin-bottom:6px">
+            <select id="selSwitch"></select>
+            <button class="act ghost" id="btnSwitch">이동</button>
+          </div>
+          <div class="row" style="margin-bottom:6px">
+            <select id="selMerge"></select>
+            <button class="act ghost" id="btnMerge">병합</button>
+          </div>
+          <div class="row" style="margin-bottom:10px">
+            <select id="selRebase"></select>
+            <button class="act ghost" id="btnRebase">리베이스</button>
+          </div>
         </div>
 
-        <div class="row">
+        <div class="cmdcol">
+          <h2>원격 저장소 (origin)</h2>
+          <div class="row" style="margin:8px 0 6px">
+            <button class="act ghost" id="btnTeam" style="flex:1">팀원이 커밋</button>
+          </div>
+          <div class="row" style="margin-bottom:6px">
+            <select id="selPR" aria-label="PR로 합칠 서버의 기능 브랜치"></select>
+            <button class="act ghost" id="btnPR">PR 병합</button>
+          </div>
+          <div class="row" style="margin-bottom:6px">
+            <button class="act ghost" id="btnFetch" style="flex:1">가져오기 · fetch</button>
+          </div>
+          <div class="row" style="margin-bottom:10px">
+            <button class="act ghost" id="btnPull" style="flex:1">받아오기 · pull</button>
+            <button class="act ghost" id="btnPush" style="flex:1">올리기 · push</button>
+          </div>
+        </div>
+
+        <div class="row span2">
           <button class="act ghost" id="btnUndo" style="flex:1">한 단계 되돌리기</button>
           <button class="act ghost" id="btnReset" style="flex:1">처음부터</button>
         </div>
       </div>
+    </div>
 
+    <!-- 진행 순서와 로그는 노선도 아래 왼쪽으로 내린다. 조작판에 두면 세로로만 늘어나
+         화면 밖으로 밀리고, 로그는 330px에 갇혀 명령마다 두 줄로 접혔다.
+         둘을 갈라 놓지 않는 이유 — 진행 순서와 로그는 줄이 1:1로 맞아야 옮겨 칠 때 안 헷갈린다 -->
+    <div class="panel work">
       <div id="stepPanel" style="display:none">
         <h2>진행 순서</h2>
         <div class="steps" id="stepList" style="margin:8px 0 10px"></div>
@@ -371,7 +418,7 @@
         </div>
       </div>
 
-      <div>
+      <div class="logwrap">
         <h2>실행한 명령</h2>
         <div class="log" id="log" style="margin-top:8px"></div>
       </div>
@@ -1602,15 +1649,6 @@ function tourPlace(mayScroll){
     if(r0.bottom > bottom)   scrollBy(0, Math.min(r0.bottom - bottom, r0.top - top));
     else if(r0.top < top)    scrollBy(0, r0.top - top);
   }
-  // 스크롤이 끝난 뒤 말풍선 자리를 잡는다
-  if(wide){
-    const m = document.querySelector(".panel.map").getBoundingClientRect();
-    tEls.tip.style.top = Math.max(12, Math.min(m.bottom + TOUR_DOCK, innerHeight - tipH - 22)) + "px";
-    tEls.tip.style.bottom = "auto";
-    tEls.tip.style.left = (m.left + m.width/2) + "px";   // 노선도 폭에 맞춰 중앙. 오른쪽 조작판을 가리지 않는다
-  } else {
-    tEls.tip.style.top = "auto"; tEls.tip.style.bottom = "22px"; tEls.tip.style.left = "50%";
-  }
   const P = 8;
   const box = e => { const r = e.getBoundingClientRect();
     return { x:r.left-P, y:r.top-P, w:r.width+P*2, h:r.height+P*2 }; };
@@ -1621,6 +1659,21 @@ function tourPlace(mayScroll){
   const b1 = solo ? box(solo) : null, b2 = el2 ? box(el2) : null;
   put(tEls.hole, b1);
   put(tEls.hole2, b2);
+
+  // 스크롤이 끝난 뒤 말풍선 자리를 잡는다.
+  // 노선도 패널 아래에는 이제 진행 순서·로그가 있다. 거기만 보고 붙이면 그 둘을 덮으므로
+  // "밝힌 대상의 아래끝"까지 함께 본다. 아래에 자리가 없으면 대상 위로 뒤집는다
+  if(wide){
+    const m = document.querySelector(".panel.map").getBoundingClientRect();
+    const limit = innerHeight - tipH - 22;
+    let top = Math.max(m.bottom, b1 ? b1.y + b1.h : 0) + TOUR_DOCK;
+    if(top > limit) top = Math.min(limit, (b1 ? b1.y : m.top) - tipH - TOUR_DOCK);
+    tEls.tip.style.top = Math.max(12, top) + "px";
+    tEls.tip.style.bottom = "auto";
+    tEls.tip.style.left = (m.left + m.width/2) + "px";   // 노선도 폭에 맞춰 중앙. 오른쪽 조작판을 가리지 않는다
+  } else {
+    tEls.tip.style.top = "auto"; tEls.tip.style.bottom = "22px"; tEls.tip.style.left = "50%";
+  }
 
   if(CUTOUT_OK){
     // 화면 전체에서 밝힐 사각형들을 빼낸다 (evenodd)

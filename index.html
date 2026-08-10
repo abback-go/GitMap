@@ -36,7 +36,7 @@
     margin:0;font-size:30px;font-weight:800;letter-spacing:-.03em;line-height:1.1;
   }
   h1 .sub{display:block;font-size:13px;font-weight:500;letter-spacing:0;color:var(--ink-soft);margin-top:7px}
-  .modes{display:flex;gap:6px}
+  .modes{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
   .modes button{
     font-family:inherit;font-size:13px;font-weight:600;
     padding:8px 14px;border-radius:999px;cursor:pointer;
@@ -129,6 +129,8 @@
   .log .c::before,.log .e::before{content:"$ ";color:var(--head);font-weight:700}
   .log .e{color:#B02A37}
   .log .n{color:var(--ink-soft)}
+  /* 명령이 터미널에 뿌린 출력. $도 #도 아니라 옮겨 칠 대상이 아니다 */
+  .log .o{color:var(--ink-soft);opacity:.8}
   .log .empty{color:var(--ink-soft);font-family:inherit}
   /* 저장소를 만들 때 한 번만 치는 명령. 아래 기록과 섞이지 않게 흐리게 구분한다 */
   .log .setup{color:#8A96A4}
@@ -225,6 +227,7 @@
       <button data-mode="free" aria-pressed="true">자유 모드</button>
       <button data-mode="merge" aria-pressed="false">시나리오 · Merge</button>
       <button data-mode="rebase" aria-pressed="false">시나리오 · Rebase</button>
+      <button data-mode="clone" aria-pressed="false">시나리오 · Clone</button>
     </div>
   </header>
 
@@ -366,6 +369,33 @@ function fresh(withRemote){
   S.log = [];
   undoStack = [];
 }
+// 서버에는 팀이 만들어 둔 저장소가 있고 내 컴퓨터는 비어 있는 상태.
+// head가 빈 문자열이면 "아직 내 저장소가 없다"는 뜻이다 (clone 전)
+function freshClone(){
+  S = { commits:{}, order:[], branches:{}, head:"", laneNext:0, log:[], staged:null };
+  const mkRemote = (name, base) => {
+    const r = { name:RPFX + name, head:base, known:base,
+                lane:S.laneNext, color:COLORS[S.laneNext % COLORS.length], remote:true };
+    S.laneNext++;
+    S.branches[r.name] = r;
+    return r;
+  };
+  // 서버 커밋은 원격 이름표 자리에서 만든다 (cmdTeamCommit과 같은 방식)
+  const rm = mkRemote("main", null);
+  S.head = rm.name;
+  doCommit("최초 커밋");
+  doCommit("맵 데이터 추가");
+  // develop은 main에서 갈라져 한 칸 더 나가 있다 — 그래야 develop으로 가야 할 이유가 보인다
+  const rd = mkRemote("develop", rm.head);
+  S.head = rd.name;
+  doCommit("사운드 매니저");
+  // 서버에 있는 것을 그대로 보여준다. doCommit은 head만 옮기므로 known을 따로 맞춰야
+  // 이름표가 붙고("아직 받지 않은 역"으로 흐려지지 않고) 서버 상태가 한눈에 보인다
+  remotes().forEach(r => { r.known = r.head; });
+  S.head = "";                 // 내 컴퓨터에는 아직 아무것도 없다
+  S.log = [];
+  undoStack = [];
+}
 function hash(){
   let h; do { h = Math.random().toString(16).slice(2,9); } while (S.commits[h]);
   return h;
@@ -449,7 +479,25 @@ function cmdBranch(name){
 }
 function cmdSwitch(name){
   if(name===S.head) return say(`이미 <b>${esc(name)}</b> 노선에 있습니다.`);
-  if(!S.branches[name]) return;
+  // 내 컴퓨터엔 없고 서버에만 있는 노선. git이 원격을 따라가는 로컬 노선을 알아서 만들어 준다
+  // (clone 직후 origin/develop은 보이는데 develop이 없어 당황하는 지점)
+  if(!S.branches[name]){
+    const r = remoteOf(name);
+    // 서버에도 없는 이름이면 만들어 주지 않는다. 실제 git도 거절한다
+    if(!r){
+      log(`git switch ${name}   # invalid reference`, "e");
+      say(`<b>${esc(name)}</b>은(는) 내 컴퓨터에도 서버에도 없습니다. 실제 git도 <code>fatal: invalid reference</code>라며 <b>거절</b>합니다 — <code>git switch</code>는 <b>브랜치를 만드는 명령이 아닙니다</b>. 새로 만들려면 <b>브랜치 + 이동</b>(<code>git switch -c</code>)을 쓰세요.`);
+      render(); return;
+    }
+    snap();
+    // 원격과 같은 lane·색을 물려받아 같은 줄에 놓인다. laneNext는 건드리지 않는다
+    S.branches[name] = { name, head:r.known, lane:r.lane, color:r.color };
+    S.head = name;
+    log(`git switch ${name}`);
+    say(`내 컴퓨터에 <b>${esc(name)}</b>이(가) 없었는데도 이동했습니다. 서버에 <code>${esc(r.name)}</code>이(가) <b>있을 때만</b> git이 그걸 따라가는 로컬 노선을 자동으로 만들어 줍니다. 서버에도 없는 이름이면 <b>거절</b>합니다 — <code>git switch</code>는 브랜치를 <b>만드는</b> 명령이 아닙니다. 새로 만들 때는 <code>-c</code>를 붙입니다(<b>브랜치 + 이동</b> 버튼).`);
+    render();
+    return;
+  }
   snap();
   S.head = name;
   log(`git switch ${name}`);
@@ -514,6 +562,34 @@ function cmdRebase(name){
 function remoteGuard(){
   if(!S.branches[REMOTE]){ say("이 모드에서는 원격 저장소를 다루지 않습니다."); return false; }
   return true;
+}
+// clone — 서버 저장소를 통째로 내 컴퓨터로 복사한다. 로컬에는 기본 브랜치 하나만 생긴다
+function cmdClone(){
+  if(S.head) return say("이미 내 컴퓨터에 저장소가 있습니다.");
+  const rm = S.branches[REMOTE];
+  if(!rm) return say("받아올 서버 저장소가 없습니다.");
+  snap();
+  // 원격 main과 같은 lane·색을 물려받는다 (fresh에서 원격을 만들 때와 같은 규칙)
+  S.branches.main = { name:"main", head:rm.head, lane:rm.lane, color:rm.color };
+  remotes().forEach(r => { r.known = r.head; });   // clone은 서버에 있는 것을 전부 받아온다
+  S.head = "main";
+  log(`git clone https://github.com/팀/저장소.git`);
+  say(`서버 저장소를 <b>통째로</b> 내 컴퓨터로 복사했습니다. 파선이던 역이 <b>전부 진해졌습니다</b> — 주황 노선의 역까지 하나도 빠짐없이 왔습니다. 그런데 <b>내 이름표가 붙은 노선은 <code>main</code> 하나뿐</b>입니다. <b>커밋은 다 왔는데 브랜치는 안 따라왔습니다</b> — 다음 단계에서 확인해 보겠습니다.`);
+  render();
+}
+// 상태를 바꾸지 않는 조회 명령. 서버에만 있는 노선을 눈으로 확인시킨다
+function cmdBranchList(){
+  const local = Object.keys(S.branches).filter(n => !S.branches[n].remote);
+  const only = remotes().filter(r => !local.includes(r.name.slice(RPFX.length)));
+  snap();
+  log(`git branch -a`);
+  // 조회 명령은 그림을 바꾸지 않는다. 대신 터미널이 뿌리는 목록을 그대로 보여준다
+  local.forEach(n => log(`${n === S.head ? "* " : "  "}${n}`, "o"));
+  remotes().forEach(r => log(`  remotes/${r.name}`, "o"));
+  say(only.length
+    ? `<b>그림은 그대로입니다</b> — 조회만 하는 명령이라 저장소를 바꾸지 않습니다. 대신 아래 <b>실행한 명령</b> 칸에 목록이 찍혔습니다. 내 노선은 <code>${esc(local.join(", "))}</code> 뿐인데 서버에는 <code>${esc(only.map(r=>r.name).join(", "))}</code>도 있죠 — <b>clone해도 로컬 노선은 기본 브랜치 하나만</b> 생깁니다.`
+    : `<b>그림은 그대로입니다</b> — 조회만 하는 명령이라 저장소를 바꾸지 않습니다. 내 노선은 <code>${esc(local.join(", "))}</code>이고 서버에만 있는 노선은 없습니다.`);
+  render();
 }
 function cmdTeamCommit(msg){
   if(!S.branches[REMOTE]) return say("이 모드에서는 원격 저장소를 다루지 않습니다.");
@@ -620,7 +696,7 @@ function cmdUndo(){
   render();
 }
 
-// k: 없으면 실행한 명령, "e" 거절/오류, "n" 명령이 아닌 설명 줄
+// k: 없으면 실행한 명령, "e" 거절/오류, "n" 명령이 아닌 설명 줄, "o" 명령이 뿌린 출력
 function log(t, k){ S.log.push({t, k}); }
 function say(html){ $("note").innerHTML = html; }
 
@@ -657,8 +733,10 @@ function render(){
   const hasBand = Object.keys(rlabels).length > 0;
 
   // 서버에는 있지만 아직 fetch하지 않은 역
+  // 내 저장소 자체가 없으면(clone 전) 받은 것도 없다 — 서버 커밋 전부가 "아직 안 받은 역"이다.
+  // known을 비우는 방법도 있지만 그러면 서버 띠 이름표가 통째로 사라진다(rlabels가 known에 붙는다)
   const gotten = new Set();
-  Object.values(S.branches).forEach(b=>{
+  if(S.head) Object.values(S.branches).forEach(b=>{
     ancestors(b.remote ? b.known : b.head).forEach(x=>gotten.add(x));
   });
   const unfetched = id => !gotten.has(id);
@@ -879,7 +957,8 @@ function render(){
   });
 
   // 사이드 UI
-  $("nowBranch").textContent = S.head;
+  // clone 전에는 내 저장소 자체가 없어 HEAD도 없다
+  $("nowBranch").textContent = S.head || "아직 없음";
   $("stagedBox").hidden = !S.staged;
   if(S.staged) $("stagedTxt").textContent = S.staged;
   // 커밋 버튼은 일부러 막지 않는다 — 담지 않고 눌러 거절당해 보는 게 이 모델의 핵심이다
@@ -906,7 +985,9 @@ function render(){
   // 커밋할 저장소가 없고 push할 원격도 없다. 매번 하는 일이 아님을 형태로 보여준다
   // 최초 커밋과 upstream 설정까지 넣어야 아래 기록이 실제로 돌아간다.
   // 이게 없으면 첫 git push가 "no upstream branch"로 실패한다
-  const SETUP = `<div class="setup"><span class="h"># 처음 한 번만 — 저장소를 만들 때</span>`
+  // clone 시나리오는 "이미 있는 저장소를 받아오는" 이야기라 git init 묶음이 맞지 않는다.
+  // 거기서는 1단계의 git clone 자체가 처음 한 번만 하는 일이다
+  const SETUP = mode === "clone" ? "" : `<div class="setup"><span class="h"># 처음 한 번만 — 저장소를 만들 때</span>`
     + `$ git init\n$ git add .\n$ git commit -m "최초 커밋"\n`
     + `$ git remote add origin https://github.com/팀/저장소.git\n$ git push -u origin main</div>`;
   const lg = $("log");
@@ -917,7 +998,8 @@ function render(){
 
   const box = document.querySelector(".map-scroll");
   box.scrollLeft = box.scrollWidth;                 // 기본은 가장 최근 역
-  const hx = cur().head ? pos[cur().head].x : null; // 좁은 화면에서 HEAD가 잘리면 그쪽으로
+  const c0 = cur();                                 // clone 전에는 현재 브랜치가 없다
+  const hx = c0 && c0.head ? pos[c0.head].x : null; // 좁은 화면에서 HEAD가 잘리면 그쪽으로
   if(hx !== null && hx < box.scrollLeft + 40) box.scrollLeft = Math.max(0, hx - 60);
 }
 
@@ -926,35 +1008,52 @@ const SCEN = {
   merge: {
     title:"기능 브랜치를 만들고 merge로 합치기",
     steps:[
-      { cmd:'git commit -m "적 AI 추가"', run:()=>cmdCommit("적 AI 추가", true) },
+      { cmd:['git add .','git commit -m "적 AI 추가"'], run:()=>cmdCommit("적 AI 추가", true) },
       { cmd:'git switch -c feature-jump', run:()=>cmdBranch("feature-jump") },
-      { cmd:'git commit -m "점프 물리"', run:()=>cmdCommit("점프 물리", true) },
-      { cmd:'git commit -m "이단 점프"', run:()=>cmdCommit("이단 점프", true) },
+      { cmd:['git add .','git commit -m "점프 물리"'], run:()=>cmdCommit("점프 물리", true) },
+      { cmd:['git add .','git commit -m "이단 점프"'], run:()=>cmdCommit("이단 점프", true) },
       { cmd:'git switch main', run:()=>cmdSwitch("main") },
-      { cmd:'git commit -m "UI 폰트 교체"', run:()=>cmdCommit("UI 폰트 교체", true) },
+      { cmd:['git add .','git commit -m "UI 폰트 교체"'], run:()=>cmdCommit("UI 폰트 교체", true) },
       { cmd:'git merge feature-jump', run:()=>cmdMerge("feature-jump") }
     ]
   },
   rebase: {
     title:"같은 상황을 rebase로 합치기",
     steps:[
-      { cmd:'git commit -m "적 AI 추가"', run:()=>cmdCommit("적 AI 추가", true) },
+      { cmd:['git add .','git commit -m "적 AI 추가"'], run:()=>cmdCommit("적 AI 추가", true) },
       { cmd:'git switch -c feature-jump', run:()=>cmdBranch("feature-jump") },
-      { cmd:'git commit -m "점프 물리"', run:()=>cmdCommit("점프 물리", true) },
-      { cmd:'git commit -m "이단 점프"', run:()=>cmdCommit("이단 점프", true) },
+      { cmd:['git add .','git commit -m "점프 물리"'], run:()=>cmdCommit("점프 물리", true) },
+      { cmd:['git add .','git commit -m "이단 점프"'], run:()=>cmdCommit("이단 점프", true) },
       { cmd:'git switch main', run:()=>cmdSwitch("main") },
-      { cmd:'git commit -m "UI 폰트 교체"', run:()=>cmdCommit("UI 폰트 교체", true) },
+      { cmd:['git add .','git commit -m "UI 폰트 교체"'], run:()=>cmdCommit("UI 폰트 교체", true) },
       { cmd:'git switch feature-jump', run:()=>cmdSwitch("feature-jump") },
       { cmd:'git rebase main', run:()=>cmdRebase("main") },
       { cmd:'git switch main', run:()=>cmdSwitch("main") },
       { cmd:'git merge feature-jump', run:()=>cmdMerge("feature-jump") }
     ]
+  },
+  // 다른 PC 앞에 앉은 상황. 내 컴퓨터가 비어 있고 서버에만 저장소가 있다
+  clone: {
+    title:"다른 PC에서 이어받기",
+    intro:"역이 전부 <b>파선</b>으로 그려져 있습니다 — 서버에는 있지만 <b>내 컴퓨터에는 없는</b> 역이라는 뜻입니다. 위쪽 <b>내 컴퓨터</b> 칸에 이름표도 하나 없죠. 아직 <b>내 저장소 자체가 없습니다</b>. 아래 ‘다음 단계’를 눌러 한 줄씩 실행하세요.",
+    steps:[
+      { cmd:'git clone https://github.com/팀/저장소.git', run:()=>cmdClone() },
+      { cmd:'git branch -a', run:()=>cmdBranchList() },
+      { cmd:'git switch develop', run:()=>cmdSwitch("develop") },
+      { cmd:['git add .','git commit -m "보스 패턴 추가"'], run:()=>cmdCommit("보스 패턴 추가", true) },
+      { cmd:'git push', run:()=>cmdPush() }
+    ]
   }
 };
 function drawSteps(){
-  $("stepList").innerHTML = scenario.steps.map((s,i)=>
-    `<div class="${i<stepIdx?"done":""}">${i<stepIdx?"✓":"·"} <span class="cmd" style="display:inline">${s.cmd}</span></div>`
-  ).join("");
+  // cmd가 배열이면 한 단계가 여러 줄이다 (담기+저장은 한 번에 실행되므로 함께 체크된다).
+  // 아래 "실행한 명령"과 줄이 1:1로 맞아야 옮겨 칠 때 헷갈리지 않는다
+  $("stepList").innerHTML = scenario.steps.map((s,i)=>{
+    const done = i < stepIdx, mark = done ? "✓" : "·";
+    return (Array.isArray(s.cmd) ? s.cmd : [s.cmd])
+      .map(c => `<div class="${done?"done":""}">${mark} <span class="cmd" style="display:inline">${c}</span></div>`)
+      .join("");
+  }).join("");
   $("btnNext").textContent = stepIdx >= scenario.steps.length ? "끝났습니다" : "다음 단계";
   $("btnNext").disabled = stepIdx >= scenario.steps.length;
 }
@@ -962,14 +1061,16 @@ function setMode(m){
   mode = m;
   [...$("modes").children].forEach(b=>{ if(b.dataset.mode) b.setAttribute("aria-pressed", b.dataset.mode===m); });
   seenNodes = new Set(); seenEdges = new Set();
-  fresh(m === "free");
+  // clone 시나리오만 "내 컴퓨터가 빈 채로 서버에만 저장소가 있는" 상태에서 출발한다
+  if(m === "clone") freshClone(); else fresh(m === "free");
   if(m==="free"){
     $("freePanel").style.display=""; $("stepPanel").style.display="none";
     say("브랜치를 만들고 커밋해보세요.");
   } else {
     $("freePanel").style.display="none"; $("stepPanel").style.display="";
     scenario = SCEN[m]; stepIdx = 0; drawSteps();
-    say(`<b>${scenario.title}</b> — 아래 ‘다음 단계’를 눌러 한 줄씩 실행하세요.`);
+    // 시작 화면이 여느 시나리오와 다른 경우에만 따로 설명한다
+    say(`<b>${scenario.title}</b> — ${scenario.intro || "아래 ‘다음 단계’를 눌러 한 줄씩 실행하세요."}`);
   }
   render();
 }

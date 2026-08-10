@@ -9,7 +9,7 @@ Git 브랜치 개념을 지하철 노선도 은유로 시각화한 교육용 단
 
 - 저장소: https://github.com/abback-go/GitMap
 - 배포: https://abback-go.github.io/GitMap/ (GitHub Pages, `main` 브랜치)
-- 본체: `index.html` 한 파일 (약 960줄)
+- 본체: `index.html` 한 파일 (약 1,420줄)
 
 ---
 
@@ -58,9 +58,11 @@ S = {
   order:   [id, ...],        // 생성 순서 = 위상 정렬 순서
   branches:{ [name]: { name, head, lane, color, remote?, known? } },
   head:    "main",           // 현재 브랜치 이름 (원격은 절대 들어가지 않음)
+                             // 빈 문자열이면 "아직 내 저장소가 없다" (clone 시나리오 시작)
   staged:  null,             // git add로 담긴 변경 설명. 커밋하면 비워진다
   laneNext: 0,
-  log:     [{ t, k }]        // k: 없으면 명령, "e" 거절/오류, "n" 명령 아닌 설명
+  log:     [{ t, k }]        // k: 없으면 명령, "e" 거절/오류, "n" 명령 아닌 설명,
+                             //    "o" 명령이 뿌린 출력 ($·# 없는 흐린 줄)
 }
 ```
 
@@ -78,18 +80,22 @@ S = {
 |---|---|
 | `cmdAdd()` | 입력칸 내용을 담는다(`git add .`). `S.staged`에 들어간다 |
 | `cmdCommit(msg, auto)` | 담긴 게 없으면 **거절**. `auto=true`면 담기까지 한 번에 (시나리오·자동 안내용) |
-| `cmdBranch(name)` / `cmdSwitch(name)` | 브랜치 생성(+이동) · 이동 |
+| `cmdBranch(name)` / `cmdSwitch(name)` | 브랜치 생성(+이동) · 이동. `cmdSwitch`는 **로컬에 없고 원격에만 있는 이름**이면 추적 브랜치를 만들며 이동한다 |
+| `cmdClone()` | 원격 전체를 로컬로 복사 + 기본 브랜치 생성. `S.head`가 비어 있을 때만 동작 |
+| `cmdBranchList()` | `git branch -a`. 상태를 바꾸지 않고 서버에만 있는 노선을 알린다 |
 | `cmdMerge(name)` / `cmdRebase(name)` | 병합 · 재배치 |
 | `cmdTeamCommit(msg)` | 팀원이 `origin/main`에 커밋 (내 브랜치도 `known`도 안 움직임) |
 | `cmdPR()` | 서버에서 `origin/<기능>`을 `origin/main`에 병합. 로컬은 안 움직인다 |
 | `cmdFetch()` | 모든 원격의 `known`을 `head`로. 내 브랜치는 안 건드림 |
 | `cmdPull()` / `cmdPush()` | **현재 브랜치**의 원격과 동기화. push는 원격이 없으면 새로 만든다 |
 | `cmdUndo()` | 한 단계 되돌리기 (`undoStack`) |
-| `setMode(m)` | `"free"` / `"merge"` / `"rebase"`. 상태를 초기화한다 |
+| `setMode(m)` | `"free"` / `"merge"` / `"rebase"` / `"clone"`. 상태를 초기화한다 |
 | `tourStart(step?)` / `tourGo(i)` / `tourJump(i)` | 안내 시작(0-based 단계 지정 가능) · 이웃 단계로 · 멀리 건너뛰기 |
 
 - **거절 경로가 조용하다.** 가드에 걸리면 아무 반환값 없이 `#note`에만 문구를 쓴다 (`remoteGuard`, `cmdPush`의 non-fast-forward 등). 스크린샷 찍기 전에 `#note` 텍스트와 `S.log` 마지막 줄을 확인해야 "실행됐다고 착각한 상태"를 안 찍는다
-- `setMode`는 `fresh(m === "free")`를 부르므로 **자유 모드에서만 원격(`origin/main`)이 생긴다**
+- `setMode`는 `clone`이면 `freshClone()`, 아니면 `fresh(m === "free")`를 부른다. 즉 **원격이 생기는 모드는 자유 모드와 clone 시나리오뿐**이다
+- **clone 시나리오만 `S.head`가 빈 채로 시작한다.** `cur()`가 `undefined`가 되므로 `render()`나 새 명령에서 `cur()`를 쓸 때 반드시 방어할 것 (`cur().head`에서 터졌던 자리다). 로그 머리말(`git init` 묶음)도 이 모드에서는 숨긴다
+- 시나리오 단계(`SCEN[m].steps[].cmd`)는 문자열 또는 **배열**이다. 배열이면 한 단계가 여러 줄로 그려지고 한 번에 함께 체크된다(`git add .` + `git commit`). **진행 순서와 아래 로그는 줄이 1:1로 맞아야 한다** — `cmdCommit(msg, true)`는 담기까지 하므로 로그에 `git add .`이 먼저 찍힌다는 걸 잊기 쉽다
 - `tourGo`는 **지나친 단계의 동작을 재생하지 않는다.** 멀리 이동할 때는 `tourJump`를 쓸 것. 주소에 `#step=N`을 붙여 열어도 같은 경로로 재개된다
 
 ### 렌더 파이프라인 (`render()`)
@@ -99,7 +105,7 @@ S = {
 1. `reach` — 모든 브랜치 head의 조상 집합. 여기 없으면 "버려진 커밋"
 2. `depth` — 부모 최대 depth + 1 → 가로 칸 번호
 3. `rowKey` / `rows` / `rowOf` — 세로줄 배치. `(살아있음? "L":"G") + lane`으로 묶고 **살아있는 줄 먼저, 그다음 버려진 줄** 순으로 정렬해 행 번호를 부여. 빈 lane은 자동 압축된다
-4. `labels`(로컬) / `rlabels`(원격) — 커밋별 이름표 묶음. `stackMax`, 동적 `ROW_H`. `gotten`으로 "아직 fetch 안 한 커밋" 판정
+4. `labels`(로컬) / `rlabels`(원격) — 커밋별 이름표 묶음. `stackMax`, 동적 `ROW_H`. `gotten`으로 "아직 fetch 안 한 커밋" 판정. **`S.head`가 비어 있으면(clone 전) `gotten`을 통째로 비운다** — 내 저장소가 없으면 받은 것도 없으므로 서버 커밋 전부가 "아직 받지 않은 역"으로 그려진다
 5. `gapAt` / `colX` — 이름표가 다음 칸 역을 덮지 않도록 열 간격 확대. 서버 띠 이름표 묶음 폭(`bandW`)도 반영한다
 6. `shift` — 서버 이름표 묶음이 `x=0` 밖으로 나가면 `colX` 전체를 오른쪽으로 민다
 7. `pos` — 최종 좌표, `maxX` / `bandTop` / `bandY` / `maxY`
@@ -170,8 +176,9 @@ Pages는 브랜치 하나만 서빙하므로 develop의 변경은 배포에 반�
 - **원격 브랜치 삭제·`--prune`는 없다.**
 - **PR은 리뷰·코멘트·승인 UI 없이 "병합 결과"만 만든다** (`cmdPR`). 그건 GitHub 화면이지 저장소 상태가 아니다
 - 자동 안내 전체 재생은 약 3분(25단계). 수업에서 길면 단계별 지속시간(`tourShow`의 `dur` 계산)을 줄이면 된다
+- **clone 시나리오는 자동 안내에 넣지 않았다.** 안내가 이미 25단계다
 
-**해결된 항목** — 원격 다중 이름표 레이아웃(`ccdade2`), rebase 반복 시 유령 겹침(`ghostLane`), 파비콘(인라인 data URI), `git fetch` 표현(`057475b`), PR 병합(`85c09ce`), 범례 아이콘 구분(버려진 커밋=점 / 아직 안 받은 역=파선), 안내 자동 넘김·9단계 두 번째 커밋 실기 확인 완료
+**해결된 항목** — 원격 다중 이름표 레이아웃(`ccdade2`), rebase 반복 시 유령 겹침(`ghostLane`), 파비콘(인라인 data URI), `git fetch` 표현(`057475b`), PR 병합(`85c09ce`), 범례 아이콘 구분(버려진 커밋=점 / 아직 안 받은 역=파선), 안내 자동 넘김·9단계 두 번째 커밋 실기 확인 완료, clone·원격 추적 브랜치(18차 — `시나리오 · Clone`)
 
 ## 8. 기호 규칙
 

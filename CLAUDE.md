@@ -89,12 +89,15 @@ S = {
 | `cmdFetch()` | 모든 원격의 `known`을 `head`로. 내 브랜치는 안 건드림 |
 | `cmdPull()` / `cmdPush()` | **현재 브랜치**의 원격과 동기화. push는 원격이 없으면 새로 만든다 |
 | `cmdUndo()` | 한 단계 되돌리기 (`undoStack`) |
-| `setMode(m)` | `"free"` / `"merge"` / `"rebase"` / `"clone"` / `"push"`. 상태를 초기화한다 |
+| `setMode(m)` | `"free"` + 시나리오 6종(`"commit"` `"merge"` `"push"` `"pr"` `"clone"` `"rebase"`). 상태를 초기화한다 |
 | `tourStart(step?)` / `tourGo(i)` / `tourJump(i)` | 안내 시작(0-based 단계 지정 가능) · 이웃 단계로 · 멀리 건너뛰기 |
 
 - **거절 경로가 조용하다.** 가드에 걸리면 아무 반환값 없이 `#note`에만 문구를 쓴다 (`remoteGuard`, `cmdPush`의 non-fast-forward 등). 스크린샷 찍기 전에 `#note` 텍스트와 `S.log` 마지막 줄을 확인해야 "실행됐다고 착각한 상태"를 안 찍는다
-- `setMode`는 `clone`이면 `freshClone()`, 아니면 `fresh(m === "free" || m === "push")`를 부른다. 즉 **원격이 생기는 모드는 자유 모드와 clone·push 시나리오**다. 원격을 쓰는 시나리오를 새로 만들면 이 조건에 넣어야 한다 — 빠뜨리면 `remoteGuard`에 걸려 조용히 아무 일도 안 일어난다
+- `setMode`는 `clone`이면 `freshClone()`, 아니면 `fresh(m === "free" || m === "push" || m === "pr")`를 부른다. 즉 **원격이 생기는 모드는 자유 모드와 clone·push·pr 시나리오**다. 원격을 쓰는 시나리오를 새로 만들면 이 조건에 넣어야 한다 — 빠뜨리면 `remoteGuard`에 걸려 조용히 아무 일도 안 일어난다
 - **clone 시나리오만 `S.head`가 빈 채로 시작한다.** `cur()`가 `undefined`가 되므로 `render()`나 새 명령에서 `cur()`를 쓸 때 반드시 방어할 것 (`cur().head`에서 터졌던 자리다). 로그 머리말(`git init` 묶음)도 이 모드에서는 숨긴다
+- **시나리오를 추가하려면 네 곳을 손댄다** — `SCEN`에 항목, 헤더 `.modes .group` 안에 `<button data-mode="…">`, 원격을 쓴다면 `setMode`의 `fresh(...)` 조건, 그리고 안내 24·25단계 본문(시나리오를 이름으로 부른다). 버튼은 묶음 안에 있으므로 라벨에 "시나리오 ·"를 붙이지 않는다 — 390px에서 묶음이 7개까지 두 줄로 받는다
+- **버튼 순서는 학습 순서다** (`Commit` → `Merge` → `Push` → `PR` → `Clone` → `Rebase`). `SCEN` 정의 순서와 다르며 **HTML 순서가 화면 순서**다. 앞의 둘은 혼자 하는 일, `Push`부터가 팀 작업, `Rebase`는 해시가 바뀌는 위험 개념이라 맨 끝이다. `Merge`와 `Rebase`는 같은 상황을 두 방식으로 처리하는 짝인데 양 끝으로 갈라져 있으므로, 안내 24단계와 README가 "맨 앞 Merge와 맨 끝 Rebase를 이어서 돌려 보라"고 짚어 준다 — **순서를 또 바꾸면 이 문구도 같이 고칠 것**
+- **거절도 시나리오다.** `Commit`(담지 않고 커밋)과 `Push`(non-fast-forward)는 일부러 거절당하는 단계를 넣었다. 거절 경로는 `render()`를 불러야 빨간 로그가 **즉시** 보인다 — `cmdCommit`이 이걸 빠뜨리고 있었다(22차에 수정)
 - 시나리오 단계(`SCEN[m].steps[].cmd`)는 문자열 또는 **배열**이다. 배열이면 한 단계가 여러 줄로 그려지고 한 번에 함께 체크된다(`git add .` + `git commit`). **진행 순서와 아래 로그는 줄이 1:1로 맞아야 한다** — `cmdCommit(msg, true)`는 담기까지 하므로 로그에 `git add .`이 먼저 찍힌다는 걸 잊기 쉽다
 - `tourGo`는 **지나친 단계의 동작을 재생하지 않는다.** 멀리 이동할 때는 `tourJump`를 쓸 것. 주소에 `#step=N`을 붙여 열어도 같은 경로로 재개된다
 

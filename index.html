@@ -356,6 +356,8 @@ const COL_W = 112, ROW_H0 = 104, PAD_X = 66, PAD_Y = 66, LBL_GAP = 23;
 const BAND_H = 58, BAND_GAP = 10, BAND_CAP = 22;
 // 원격 저장소. 처음엔 main만 추적한다. 로컬 브랜치는 push 해야 origin/<이름>이 생긴다
 const RPFX = "origin/", REMOTE = RPFX + "main", REMOTE_COLOR = "#5B6876";
+// 원격 주소. 로그 머리말·clone·remote add가 같은 문자열을 쓴다
+const ORIGIN_URL = "https://github.com/팀/저장소.git";
 const remoteOf = name => S.branches[RPFX + name];
 const remotes = () => Object.values(S.branches).filter(b => b.remote);
 
@@ -385,23 +387,28 @@ function textW(s, weight){
 
 /* ───────── 상태 ───────── */
 // withRemote=false면 원격 없이 시작한다 (시나리오 모드는 원격을 다루지 않는다)
+// S.origin은 "원격 주소를 등록해 뒀는가"(.git/config)다. 서버에 무엇이 올라가 있는지와 다른 이야기라
+// origin/main 이름표와 따로 둔다 — git remote add는 주소만 적고 아무것도 주고받지 않는다
 function fresh(withRemote){
-  S = { commits:{}, order:[], branches:{}, head:"main", laneNext:0, log:[], staged:null };
+  S = { commits:{}, order:[], branches:{}, head:"main", laneNext:0, log:[], staged:null, origin:null };
   makeBranch("main");
   doCommit("최초 커밋");
   // 원격은 같은 역에서 출발한다. lane 번호를 새로 쓰지 않아 로컬 브랜치 색이 밀리지 않는다
   // 선로 색은 main과 같게 둔다("노선 = 색" 규칙 유지). 원격임은 이름표 모양으로만 구분
   // head = 서버의 실제 위치, known = 내가 fetch로 받아 아는 위치. 둘이 벌어진 구간이 "아직 안 받은 역"
-  if(withRemote !== false)
+  if(withRemote !== false){
+    S.origin = ORIGIN_URL;
     S.branches[REMOTE] = { name:REMOTE, head:S.branches.main.head, known:S.branches.main.head,
                            lane:S.branches.main.lane, color:S.branches.main.color, remote:true };
+  }
   S.log = [];
   undoStack = [];
 }
 // 서버에는 팀이 만들어 둔 저장소가 있고 내 컴퓨터는 비어 있는 상태.
 // head가 빈 문자열이면 "아직 내 저장소가 없다"는 뜻이다 (clone 전)
 function freshClone(){
-  S = { commits:{}, order:[], branches:{}, head:"", laneNext:0, log:[], staged:null };
+  // clone은 주소를 받아 통째로 복사하는 명령이라 origin 등록도 clone이 대신 해 준다
+  S = { commits:{}, order:[], branches:{}, head:"", laneNext:0, log:[], staged:null, origin:ORIGIN_URL };
   const mkRemote = (name, base) => {
     const r = { name:RPFX + name, head:base, known:base,
                 lane:S.laneNext, color:COLORS[S.laneNext % COLORS.length], remote:true };
@@ -423,6 +430,11 @@ function freshClone(){
   remotes().forEach(r => { r.known = r.head; });
   S.head = "";                 // 내 컴퓨터에는 아직 아무것도 없다
   S.log = [];
+  undoStack = [];
+}
+// 아무것도 없는 빈 폴더. git init 전이라 브랜치도 커밋도 없다 (commit 시나리오의 출발점)
+function freshEmpty(){
+  S = { commits:{}, order:[], branches:{}, head:"", laneNext:0, log:[], staged:null, origin:null };
   undoStack = [];
 }
 function hash(){
@@ -464,6 +476,16 @@ function doCommit(msg){
 }
 // git add — 바꾼 것을 "담는" 단계. 담기지 않은 건 커밋되지 않는다
 function doStage(msg){ S.staged = msg; log(`git add .`); }
+// git init — 빈 폴더를 저장소로 만든다. 브랜치 이름만 정해지고 역은 하나도 생기지 않는다
+function cmdInit(){
+  if(S.head) return say("이미 내 컴퓨터에 저장소가 있습니다.");
+  snap();
+  makeBranch("main");
+  S.head = "main";
+  log(`git init`);
+  say(`빈 폴더가 <b>저장소</b>가 되었습니다. 그런데 <b>노선도는 아직 비어 있습니다</b> — <code>main</code>이라는 <b>이름만 정해졌을 뿐</b> 역이 하나도 없어서 이름표를 붙일 곳도 없습니다. 브랜치는 <b>역을 가리키는 이름표</b>라서, 가리킬 역이 없으면 그림에도 나타나지 않습니다.`);
+  render();
+}
 function cmdAdd(){
   const msg = ($("msg").value || "").trim();
   if(S.staged) return say(`이미 <b>${esc(S.staged)}</b> 이(가) 담겨 있습니다. <b>커밋</b>으로 저장하세요.`);
@@ -476,6 +498,8 @@ function cmdAdd(){
 }
 // auto=true면 담기까지 한 번에 한다 (시나리오·자동 안내용)
 function cmdCommit(msg, auto){
+  // 저장소가 없으면 담을 곳도 커밋할 곳도 없다 (git init / clone 전)
+  if(!S.head) return say("아직 저장소가 없습니다. 먼저 <code>git init</code>으로 저장소를 만드세요.");
   if(!S.staged){
     if(!auto){
       const typed = ($("msg").value || "").trim();
@@ -589,10 +613,21 @@ function cmdRebase(name){
   render();
 }
 /* ── 원격 저장소 ── */
-// 원격 항목이 아예 없는 모드(시나리오)에서만 막는다. 브랜치별 판정은 각 명령이 한다
+// 주소가 등록돼 있는지만 본다(= .git/config). 서버에 무엇이 올라가 있는지는 각 명령이 따로 판정한다
 function remoteGuard(){
-  if(!S.branches[REMOTE]){ say("이 모드에서는 원격 저장소를 다루지 않습니다."); return false; }
+  if(!S.origin){ say("이 저장소에는 아직 원격(<code>origin</code>)이 등록되어 있지 않습니다."); return false; }
   return true;
+}
+// git remote add — 주소에 origin이라는 이름을 붙여 둘 뿐이다. 네트워크를 쓰지 않는다.
+// 그래서 서버 구역은 열리지만 안은 비어 있다 — origin/main 이름표는 push·fetch가 만든다
+function cmdRemoteAdd(){
+  if(!S.head) return say("아직 저장소가 없습니다. 먼저 <code>git init</code>으로 저장소를 만드세요.");
+  if(S.origin) return say("이미 <code>origin</code>이 등록되어 있습니다.");
+  snap();
+  S.origin = ORIGIN_URL;
+  log(`git remote add origin ${ORIGIN_URL}`);
+  say(`아래에 <b>팀 공용 서버</b> 구역이 열렸지만 <b>안은 비어 있습니다</b>. <code>git remote add</code>는 그 주소에 <code>origin</code>이라는 <b>이름을 붙여 둘 뿐</b>이라 서버와 아무것도 주고받지 않습니다 — 인터넷이 끊겨 있어도, 주소가 틀려도 성공합니다. 서버에 실제로 말을 거는 건 다음 <code>push</code>입니다.`);
+  render();
 }
 // clone — 서버 저장소를 통째로 내 컴퓨터로 복사한다. 로컬에는 기본 브랜치 하나만 생긴다
 function cmdClone(){
@@ -604,7 +639,7 @@ function cmdClone(){
   S.branches.main = { name:"main", head:rm.head, lane:rm.lane, color:rm.color };
   remotes().forEach(r => { r.known = r.head; });   // clone은 서버에 있는 것을 전부 받아온다
   S.head = "main";
-  log(`git clone https://github.com/팀/저장소.git`);
+  log(`git clone ${ORIGIN_URL}`);
   say(`서버 저장소를 <b>통째로</b> 내 컴퓨터로 복사했습니다. 파선이던 역이 <b>전부 진해졌습니다</b> — 주황 노선의 역까지 하나도 빠짐없이 왔습니다. 그런데 <b>내 이름표가 붙은 노선은 <code>main</code> 하나뿐</b>입니다. <b>커밋은 다 왔는데 브랜치는 안 따라왔습니다</b> — 다음 단계에서 확인해 보겠습니다.`);
   render();
 }
@@ -623,7 +658,9 @@ function cmdBranchList(){
   render();
 }
 function cmdTeamCommit(msg){
-  if(!S.branches[REMOTE]) return say("이 모드에서는 원격 저장소를 다루지 않습니다.");
+  if(!remoteGuard()) return;
+  // 주소만 등록하고 아직 아무것도 안 올린 상태에서는 팀원이 올릴 곳도 없다
+  if(!S.branches[REMOTE]) return say("서버에 아직 <code>main</code>이 없습니다. 먼저 <b>올리기</b>로 올려 두세요.");
   msg = (msg || "").trim() || "팀원 작업";
   snap();
   // 원격 이름표 위치에서 커밋한 것처럼 처리한다. 내 브랜치는 움직이지 않는다
@@ -777,7 +814,9 @@ function render(){
     const bag = b.remote ? rlabels : labels;
     (bag[at] = bag[at] || []).push(b);
   });
-  const hasBand = Object.keys(rlabels).length > 0;
+  // 주소만 등록해 둔 상태(git remote add 직후)에도 구역은 연다. 대신 안이 비어 있다는 걸 보여준다
+  const emptyBand = !Object.keys(rlabels).length && !!S.origin;
+  const hasBand = Object.keys(rlabels).length > 0 || emptyBand;
 
   // 이름표 알약 너비. 글자 수로 어림잡으면 한글이 알약을 넘는다(10자부터 넘쳤다).
   // Pretendard는 고정폭이 아니므로 실제 그려질 폭을 재서 쓴다
@@ -840,8 +879,12 @@ function render(){
   Object.keys(rlabels).forEach(cid=>{
     rightEnd = Math.max(rightEnd, pos[cid].x + bandW(rlabels[cid])/2 + 14);
   });
-  if(hasBand) rightEnd = Math.max(rightEnd, 176);    // 띠 머리글이 잘리지 않게
-  const maxX = rightEnd + 18;
+  // 띠 머리글이 잘리지 않게. 빈 띠는 안내 문구가 들어가므로 더 넓게 잡는다
+  if(hasBand) rightEnd = Math.max(rightEnd, emptyBand ? 300 : 176);
+  // 역이 하나도 없는 상태(빈 폴더 · git init 직후)는 텅 빈 화면이 고장으로 보인다. 한 줄 남긴다
+  const emptyMsg = S.order.length ? null
+    : (S.head ? "저장소는 생겼지만 아직 커밋이 없습니다" : "아직 저장소가 없습니다");
+  const maxX = Math.max(rightEnd + 18, emptyMsg ? 340 : 0);
   // 로컬 구역의 아래끝. 서버 전용 줄(R)은 서버 구역이므로 여기서 뺀다
   const localRows = hasRemoteRows ? firstRemoteRow : rows.length;
   const bodyBottom = topPad + Math.max(0, localRows-1)*ROW_H
@@ -865,6 +908,12 @@ function render(){
 
   const NS = "http://www.w3.org/2000/svg";
   const el = (t,a)=>{ const n=document.createElementNS(NS,t); for(const k in a) n.setAttribute(k,a[k]); return n; };
+
+  if(emptyMsg){
+    const t = el("text",{ x:maxX/2, y:topPad, "text-anchor":"middle","font-size":13, fill:"#9AA6B4" });
+    t.textContent = emptyMsg;
+    svg.appendChild(t);
+  }
 
   // 노선 이름표 (왼쪽 여백)
   rows.forEach((k,i)=>{
@@ -890,6 +939,13 @@ function render(){
     svg.appendChild(el("rect",{ x:0, y:bandTop, width:maxX, height:maxY - bandTop, fill:"#F1F5FA" }));
     svg.appendChild(el("line",{ x1:0, y1:bandTop, x2:maxX, y2:bandTop,
       stroke:REMOTE_COLOR, "stroke-width":1.5, "stroke-dasharray":"7 5", opacity:.5 }));
+    // 주소만 등록된 상태. 구역은 열렸지만 올라간 것이 없다는 걸 글로 남긴다
+    if(emptyBand){
+      const t = el("text",{ x:maxX/2, y:bandTop + 42, "text-anchor":"middle","font-size":12.5,
+        fill:REMOTE_COLOR, opacity:.75 });
+      t.textContent = "주소만 등록했습니다 — 아직 주고받은 것이 없습니다";
+      svg.appendChild(t);
+    }
     // 서버 이름표가 어느 역을 가리키는지 잇는 세로 점선 (선로·역 아래로 깔린다)
     Object.keys(rlabels).forEach(cid=>{
       const p = pos[cid];
@@ -1058,10 +1114,11 @@ function render(){
   // 최초 커밋과 upstream 설정까지 넣어야 아래 기록이 실제로 돌아간다.
   // 이게 없으면 첫 git push가 "no upstream branch"로 실패한다
   // clone 시나리오는 "이미 있는 저장소를 받아오는" 이야기라 git init 묶음이 맞지 않는다.
-  // 거기서는 1단계의 git clone 자체가 처음 한 번만 하는 일이다
-  const SETUP = mode === "clone" ? "" : `<div class="setup"><span class="h"># 처음 한 번만 — 저장소를 만들 때</span>`
+  // 거기서는 1단계의 git clone 자체가 처음 한 번만 하는 일이다.
+  // commit·push 시나리오는 이 묶음의 줄을 직접 단계로 실행하므로 같은 줄을 위에 또 띄우지 않는다
+  const SETUP = ["clone","commit","push"].includes(mode) ? "" : `<div class="setup"><span class="h"># 처음 한 번만 — 저장소를 만들 때</span>`
     + `$ git init\n$ git add .\n$ git commit -m "최초 커밋"\n`
-    + `$ git remote add origin https://github.com/팀/저장소.git\n$ git push -u origin main</div>`;
+    + `$ git remote add origin ${ORIGIN_URL}\n$ git push -u origin main</div>`;
   const lg = $("log");
   lg.innerHTML = SETUP + (S.log.length
     ? S.log.map(l=>`<div class="${l.k || "c"}">${esc(l.t)}</div>`).join("")
@@ -1083,9 +1140,13 @@ const SCEN = {
   // 담지 않으면 커밋되지 않는다. 입문 첫 주에 모두가 만나는 거절이다
   // (cmdCommit을 auto 없이 부르면 거절한다. 입력칸을 채워 둬야 로그에 명령이 남는다)
   commit: {
-    title:"담기와 저장은 다른 일",
-    intro:"첫 단추입니다. <code>git commit</code>은 <b>담아 둔 것만</b> 저장합니다. 담지 않고 눌러 <b>거절당하는 것부터</b> 해보겠습니다. 아래 ‘다음 단계’를 눌러 한 줄씩 실행하세요.",
+    title:"빈 폴더에서 첫 커밋까지",
+    intro:"<b>아무것도 없는 빈 폴더</b>에서 시작합니다. <code>git init</code>으로 저장소를 만들고 <b>최초 커밋</b>을 찍은 뒤, <code>git commit</code>이 <b>담아 둔 것만</b> 저장한다는 것을 <b>거절당해 보며</b> 확인합니다. 아래 ‘다음 단계’를 눌러 한 줄씩 실행하세요.",
     steps:[
+      { cmd:'git init', run:()=>cmdInit() },
+      // 저장소가 생겨도 커밋이 없으면 그림도 비어 있다. 첫 역이 생겨야 이름표가 붙는다
+      { cmd:['git add .','git commit -m "최초 커밋"'],
+        run:()=>{ $("msg").value = "최초 커밋"; cmdCommit("최초 커밋", true); } },
       { cmd:'git commit -m "적 AI 추가"',
         run:()=>{ $("msg").value = "적 AI 추가"; cmdCommit("적 AI 추가"); } },   // 거절된다
       { cmd:'git add .',                 run:()=>cmdAdd() },
@@ -1133,14 +1194,18 @@ const SCEN = {
       { cmd:'git push', run:()=>cmdPush() }
     ]
   },
-  // 팀 작업에서 가장 자주 만나는 사고. push가 막히는 게 고장이 아니라 안전장치임을 보여준다
+  // 원격이 처음 등장하는 시나리오. 그래서 서버 연결(remote add)과 첫 올리기(push -u)부터 시작한다.
+  // 그 뒤가 팀 작업에서 가장 자주 만나는 사고 — push가 막히는 게 고장이 아니라 안전장치임을 보여준다
   push: {
-    title:"push가 거절될 때",
-    intro:"팀 작업에서 <b>가장 자주 만나는 사고</b>입니다. <code>push</code>가 막히는 게 고장이 아니라 <b>안전장치</b>라는 걸 확인해 보세요. 아래 ‘다음 단계’를 눌러 한 줄씩 실행하세요.",
+    title:"서버에 올리기, 그리고 거절될 때",
+    intro:"여기서 <b>팀 공용 서버</b>가 처음 등장합니다. 서버 주소를 등록하고 올려 둔 다음, <code>push</code>가 <b>막히는</b> 상황까지 갑니다 — 팀 작업에서 <b>가장 자주 만나는 사고</b>이고, 고장이 아니라 <b>안전장치</b>입니다. 아래 ‘다음 단계’를 눌러 한 줄씩 실행하세요.",
     steps:[
-      { cmd:['git add .','git commit -m "적 AI 추가"'], run:()=>cmdCommit("적 AI 추가", true) },
+      // 주소만 적는 단계. 그림이 거의 안 변하는 게 요점이다 (구역만 열리고 안은 비어 있다)
+      { cmd:`git remote add origin ${ORIGIN_URL}`, run:()=>cmdRemoteAdd() },
+      { cmd:'git push -u origin main', run:()=>cmdPush() },   // 이때 origin/main 이름표가 생긴다
       // 내가 작업하는 사이 서버가 앞서 나간다. 내 브랜치도 known도 안 움직인다
       { cmd:'# 팀원이 원격에 "UI 폰트 교체" 커밋을 올렸습니다', run:()=>cmdTeamCommit("UI 폰트 교체") },
+      { cmd:['git add .','git commit -m "적 AI 추가"'], run:()=>cmdCommit("적 AI 추가", true) },
       { cmd:'git push', run:()=>cmdPush() },      // 거절된다 (non-fast-forward)
       { cmd:'git pull', run:()=>cmdPull() },      // 갈라져 있으므로 환승역이 생긴다
       { cmd:'git push', run:()=>cmdPush() }       // 이번엔 올라간다
@@ -1179,9 +1244,12 @@ function setMode(m){
   // 시나리오 버튼은 묶음(.group) 안에 있어 직계 자식만 훑으면 놓친다
   $("modes").querySelectorAll("[data-mode]").forEach(b=> b.setAttribute("aria-pressed", b.dataset.mode===m));
   seenNodes = new Set(); seenEdges = new Set(); prevPos = new Map();
-  // clone 시나리오만 "내 컴퓨터가 빈 채로 서버에만 저장소가 있는" 상태에서 출발한다.
-  // push 시나리오는 원격을 다루므로 자유 모드와 같은 시작 상태가 필요하다
-  if(m === "clone") freshClone(); else fresh(m === "free" || m === "push" || m === "pr");
+  // clone 시나리오만 "내 컴퓨터가 빈 채로 서버에만 저장소가 있는" 상태에서 출발하고,
+  // commit 시나리오는 서버도 저장소도 없는 빈 폴더에서 출발한다.
+  // push 시나리오는 원격이 처음 등장하는 곳이라 원격 없이 시작해 remote add부터 직접 한다
+  if(m === "clone") freshClone();
+  else if(m === "commit") freshEmpty();
+  else fresh(m === "free" || m === "pr");
   if(m==="free"){
     $("freePanel").style.display=""; $("stepPanel").style.display="none";
     say("브랜치를 만들고 커밋해보세요.");

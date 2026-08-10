@@ -58,7 +58,8 @@ S = {
   order:   [id, ...],        // 생성 순서 = 위상 정렬 순서
   branches:{ [name]: { name, head, lane, color, remote?, known? } },
   head:    "main",           // 현재 브랜치 이름 (원격은 절대 들어가지 않음)
-                             // 빈 문자열이면 "아직 내 저장소가 없다" (clone 시나리오 시작)
+                             // 빈 문자열이면 "아직 내 저장소가 없다" (clone·commit 시나리오 시작)
+  origin:  null,             // 등록된 원격 주소(.git/config). 서버에 무엇이 올라가 있는지와 다른 축이다
   staged:  null,             // git add로 담긴 변경 설명. 커밋하면 비워진다
   laneNext: 0,
   log:     [{ t, k }]        // k: 없으면 명령, "e" 거절/오류, "n" 명령 아닌 설명,
@@ -72,6 +73,7 @@ S = {
 - 원격은 `S.branches["origin/<이름>"]`에 `remote:true`로 들어간다. 브랜치 구조를 재사용하므로 이름표 렌더·도달성 계산이 그대로 동작한다
 - **원격만 `head` / `known` 두 개를 가진다.** `head`는 서버의 실제 위치, `known`은 내가 `fetch`로 받아 아는 위치. 둘이 벌어진 구간이 "아직 받지 않은 역"이고, 서버 띠의 이름표는 `known`에 붙는다
 - 처음엔 `origin/main`만 있다. 다른 브랜치는 그 브랜치에서 `cmdPush()`를 해야 `origin/<이름>`이 생긴다 (`git push -u`). 헬퍼는 `remoteOf(name)` / `remotes()`
+- **`S.origin`(주소 등록)과 `origin/*` 브랜치(서버에 올라간 것)는 다른 축이다.** 실제 `git remote add`는 `.git/config`에 URL만 적고 네트워크를 쓰지 않는다 — 직후 `git branch -r`는 아무것도 출력하지 않는다. 원격 추적 이름표는 `push -u`/`fetch`/`clone`이 만든다. 이 구분이 Push 시나리오 1·2단계의 교육 포인트이므로 **`cmdRemoteAdd()`에서 `origin/main`을 만들면 안 된다**
 
 ### 조작 API (전부 전역)
 
@@ -79,11 +81,13 @@ S = {
 
 | 함수 | 동작 |
 |---|---|
+| `cmdInit()` | 빈 폴더를 저장소로 만든다(`git init`). `main` 브랜치만 생기고 커밋은 없다 |
 | `cmdAdd()` | 입력칸 내용을 담는다(`git add .`). `S.staged`에 들어간다 |
 | `cmdCommit(msg, auto)` | 담긴 게 없으면 **거절**. `auto=true`면 담기까지 한 번에 (시나리오·자동 안내용) |
 | `cmdBranch(name)` / `cmdSwitch(name)` | 브랜치 생성(+이동) · 이동. `cmdSwitch`는 **로컬에 없고 원격에만 있는 이름**이면 추적 브랜치를 만들며 이동한다 |
 | `cmdClone()` | 원격 전체를 로컬로 복사 + 기본 브랜치 생성. `S.head`가 비어 있을 때만 동작 |
 | `cmdBranchList()` | `git branch -a`. 상태를 바꾸지 않고 서버에만 있는 노선을 알린다 |
+| `cmdRemoteAdd()` | `S.origin`에 주소만 등록한다. **원격 브랜치는 안 만든다** — 서버 구역이 빈 채로 열린다 |
 | `cmdMerge(name)` / `cmdRebase(name)` | 병합 · 재배치 |
 | `cmdTeamCommit(msg)` | 팀원이 `origin/main`에 커밋 (내 브랜치도 `known`도 안 움직임) |
 | `cmdPR()` | 서버에서 `origin/<기능>`을 `origin/main`에 병합. 로컬은 안 움직인다 |
@@ -94,8 +98,10 @@ S = {
 | `tourStart(step?)` / `tourGo(i)` / `tourJump(i)` | 안내 시작(0-based 단계 지정 가능) · 이웃 단계로 · 멀리 건너뛰기 |
 
 - **거절 경로가 조용하다.** 가드에 걸리면 아무 반환값 없이 `#note`에만 문구를 쓴다 (`remoteGuard`, `cmdPush`의 non-fast-forward 등). 스크린샷 찍기 전에 `#note` 텍스트와 `S.log` 마지막 줄을 확인해야 "실행됐다고 착각한 상태"를 안 찍는다
-- `setMode`는 `clone`이면 `freshClone()`, 아니면 `fresh(m === "free" || m === "push" || m === "pr")`를 부른다. 즉 **원격이 생기는 모드는 자유 모드와 clone·push·pr 시나리오**다. 원격을 쓰는 시나리오를 새로 만들면 이 조건에 넣어야 한다 — 빠뜨리면 `remoteGuard`에 걸려 조용히 아무 일도 안 일어난다
-- **clone 시나리오만 `S.head`가 빈 채로 시작한다.** `cur()`가 `undefined`가 되므로 `render()`나 새 명령에서 `cur()`를 쓸 때 반드시 방어할 것 (`cur().head`에서 터졌던 자리다). 로그 머리말(`git init` 묶음)도 이 모드에서는 숨긴다
+- `setMode`는 `clone`이면 `freshClone()`, `commit`이면 `freshEmpty()`, 아니면 `fresh(m === "free" || m === "pr")`를 부른다. 즉 **원격을 갖고 시작하는 모드는 자유 모드와 pr·clone**이고, `push`는 **원격 없이 시작해 `git remote add`부터 직접 한다**. `remoteGuard`는 `S.branches[REMOTE]`가 아니라 **`S.origin`**을 본다 — 주소만 등록하고 아직 아무것도 안 올린 중간 상태가 있기 때문
+- **`S.head`가 빈 채로 시작하는 모드가 둘이다** — `clone`(서버에만 저장소가 있다)과 `commit`(저장소 자체가 없고 커밋도 0개다). `cur()`가 `undefined`가 되므로 `render()`나 새 명령에서 `cur()`를 쓸 때 반드시 방어할 것 (`cur().head`에서 터졌던 자리다). 로그 머리말(`git init` 묶음)은 `clone`·`commit`·`push` 세 모드에서 숨긴다 — 그 줄들을 시나리오가 직접 실행하므로 위아래로 겹친다
+- **커밋이 0개면 노선도에 안내 문구 한 줄만 그린다** (`emptyMsg`, `git init` 전후로 문구가 바뀐다). 빈 화면이 고장으로 보이지 않게 하는 장치이고, 캔버스 최소 폭 340도 이때만 걸린다
+- **빈 서버 띠**(`emptyBand` = `S.origin`은 있는데 원격 이름표가 없음)는 `remote add` 직후 상태다. 띠·머리글은 그리고 안에는 문구만 넣는다. `bandY`(이름표 세로 중심)는 이때 쓰이지 않고, 캔버스 최소 폭이 176 → 300으로 올라간다
 - **시나리오를 추가하려면 네 곳을 손댄다** — `SCEN`에 항목, 헤더 `.modes .group` 안에 `<button data-mode="…">`, 원격을 쓴다면 `setMode`의 `fresh(...)` 조건, 그리고 안내 24·25단계 본문(시나리오를 이름으로 부른다). 버튼은 묶음 안에 있으므로 라벨에 "시나리오 ·"를 붙이지 않는다 — 390px에서 묶음이 7개까지 두 줄로 받는다
 - **버튼 순서는 학습 순서다** (`Commit` → `Merge` → `Push` → `PR` → `Clone` → `Rebase`). `SCEN` 정의 순서와 다르며 **HTML 순서가 화면 순서**다. 앞의 둘은 혼자 하는 일, `Push`부터가 팀 작업, `Rebase`는 해시가 바뀌는 위험 개념이라 맨 끝이다. `Merge`와 `Rebase`는 같은 상황을 두 방식으로 처리하는 짝인데 양 끝으로 갈라져 있으므로, 안내 24단계와 README가 "맨 앞 Merge와 맨 끝 Rebase를 이어서 돌려 보라"고 짚어 준다 — **순서를 또 바꾸면 이 문구도 같이 고칠 것**
 - **거절도 시나리오다.** `Commit`(담지 않고 커밋)과 `Push`(non-fast-forward)는 일부러 거절당하는 단계를 넣었다. 거절 경로는 `render()`를 불러야 빨간 로그가 **즉시** 보인다 — `cmdCommit`이 이걸 빠뜨리고 있었다(22차에 수정)

@@ -64,7 +64,7 @@
   .panel{background:var(--paper-2);border:1.5px solid var(--rule);border-radius:14px;box-shadow:var(--shadow)}
 
   /* ── 노선도 ── */
-  .map{padding:6px 6px 0;overflow:hidden;position:relative}
+  .map{padding:6px;overflow:hidden;position:relative}
   .map-scroll{overflow-x:auto;overflow-y:hidden}
   /* 구역 머리글은 가로 스크롤을 따라가면 안 되므로 SVG 밖에 얹는다 */
   .zone{
@@ -76,7 +76,7 @@
   svg{display:block}
   .legend{
     display:flex;gap:16px;flex-wrap:wrap;align-items:center;
-    padding:10px 14px;border-top:1.5px dashed var(--rule);margin-top:4px;
+    padding:6px 8px 10px;border-bottom:1.5px dashed var(--rule);margin-bottom:6px;
     font-size:12px;color:var(--ink-soft)
   }
   .legend b{color:var(--ink);font-weight:700}
@@ -87,6 +87,24 @@
   .lg i.unfetched{border-style:dashed;border-color:#5B6876;opacity:.8}
   .lg i.headmark{width:22px;height:12px;border:none;border-radius:999px;background:var(--head)}
   .lg i.remote{width:22px;height:12px;border:2px solid #5B6876;border-radius:999px;background:#fff}
+  /* 방금 실행한 명령. margin-left:auto로 줄 오른쪽 끝에 붙어 범례를 밀지 않는다.
+     min-width:0이 있어야 flex 항목이 줄어들며 ellipsis가 먹는다 */
+  /* flex-basis:0 — 줄의 필요 폭에 0으로 잡혀 절대 줄바꿈을 유발하지 않는다. 남는 자리만 차지하고
+     모자라면 ellipsis로 줄어든다. 폭 상한을 px로 박으면 창 폭마다 경계가 어긋나 범례가 2줄이 된다
+     (범례 6항목의 폭은 고정이라 남는 자리가 창 폭에 정비례하지 않는다) */
+  #curCmd{
+    flex:1 1 0;min-width:0;text-align:right;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    font-family:var(--mono);font-size:12.5px;font-weight:700;color:var(--ink)
+  }
+  #curCmd::before{content:"$ ";color:var(--head)}
+  #curCmd.e{color:#B02A37}
+  /* 명령이 아니라 팀원·GitHub이 한 일. $를 붙이면 옮겨 칠 것으로 오해한다 */
+  #curCmd.n{color:var(--ink-soft);font-weight:600}
+  #curCmd.n::before{content:""}
+  /* 한 열로 접히는 폭부터는 사이드바가 노선도 바로 아래로 내려와 명령이 이미 가깝다.
+     남는 가로 자리도 없어 "…"만 남는다 */
+  @media (max-width:900px){ #curCmd{display:none} }
 
   /* ── 조작판 ── */
   .console{padding:16px;display:flex;flex-direction:column;gap:14px}
@@ -110,6 +128,8 @@
   .act:active{transform:translateY(1px)}
   .act.ghost{background:transparent;color:var(--ink);border-color:var(--rule)}
   .act.ghost:hover{border-color:var(--ink)}
+  /* :hover 규칙보다 뒤에 와야 덮인다(특정도가 같다). 끝났습니다·이전·안내 이전 버튼이 함께 걸린다 */
+  .act:disabled{opacity:.32;cursor:default;border-color:var(--rule)}
 
   .now{
     font-size:13px;padding:10px 12px;border-radius:8px;
@@ -259,17 +279,24 @@
 
   <div class="grid">
     <div class="panel map">
+      <!-- 범례는 노선도 위에 둔다. 아래에 두면 SVG 높이(maxY)가 바뀔 때마다 따라 움직여
+           기호를 확인할 때마다 눈으로 다시 찾아야 했다. 여기는 패널 위 가장자리라 자리가 고정된다.
+           기호의 자세한 뜻은 안내 3부 "기호 읽는 법"이 맡는다 — 여기서는 이름만 짚는다 -->
+      <div class="legend">
+        <span class="lg"><i></i> <b>커밋</b></span>
+        <span class="lg"><i class="transfer"></i> <b>병합 커밋</b></span>
+        <span class="lg"><i class="ghost"></i> <b>버려진 커밋</b></span>
+        <span class="lg"><i class="headmark"></i> <b>HEAD</b></span>
+        <span class="lg"><i class="unfetched"></i> <b>아직 안 받은 역</b></span>
+        <span class="lg"><i class="remote"></i> <b>origin/main</b></span>
+        <!-- 방금 실행한 명령. 사이드바 맨 아래 로그는 그림에서 대각선으로 가장 먼 자리라
+             무엇을 쳐서 무엇이 달라졌는지 한눈에 안 들어왔다. 그래프 오른쪽 빈 공간은
+             Merge·Rebase에서 사라지므로(여유 169·123px) 자리가 고정된 이 줄 끝에 붙인다 -->
+        <code id="curCmd" hidden></code>
+      </div>
       <div class="map-scroll"><svg id="canvas" role="img" aria-label="Git 커밋 그래프"></svg></div>
       <div class="zone zone-local" id="zoneLocal" hidden>내 컴퓨터 (로컬)</div>
       <div class="zone zone-remote" id="zoneRemote" hidden>팀 공용 서버 (origin)</div>
-      <div class="legend">
-        <span class="lg"><i></i> <b>커밋</b> 하나의 역</span>
-        <span class="lg"><i class="transfer"></i> <b>병합 커밋</b> 두 노선이 만나는 환승역</span>
-        <span class="lg"><i class="ghost"></i> <b>버려진 커밋</b> 점 동그라미 · rebase 후 남은 옛 선로</span>
-        <span class="lg"><i class="headmark"></i> <b>HEAD</b> 지금 올라타 있는 브랜치 이름표를 가리킴</span>
-        <span class="lg"><i class="unfetched"></i> <b>아직 받지 않은 역</b> 파선 동그라미 · 서버에는 있지만 fetch 전</span>
-        <span class="lg"><i class="remote"></i> <b>origin/main</b> 원격 저장소(팀 공용)가 가리키는 역</span>
-      </div>
     </div>
 
     <div class="panel console">
@@ -335,6 +362,7 @@
         <h2>진행 순서</h2>
         <div class="steps" id="stepList" style="margin:8px 0 10px"></div>
         <div class="row">
+          <button class="act ghost" id="btnPrev" style="flex:1">이전</button>
           <button class="act" id="btnNext" style="flex:2">다음 단계</button>
           <button class="act ghost" id="btnRestart" style="flex:1">다시</button>
         </div>
@@ -366,6 +394,9 @@ let S, undoStack = [], seenNodes = new Set(), seenEdges = new Set();
 // (pull로 받아온 역이 서버 구역에서 내 구역으로 올라오는 것을 보여준다)
 let prevPos = new Map();
 let mode = "free", scenario = null, stepIdx = 0;
+// 시나리오 "이전 단계"용. undoStack과 따로 쌓는다 — 거절 단계는 snap()을 부르지 않아
+// undoStack이 한 칸 어긋난다(cmdCommit·cmdPush의 거절 경로). 단계 실행 직전 상태를 통째로 담는다
+let stepStack = [];
 
 const $ = id => document.getElementById(id);
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -1125,6 +1156,12 @@ function render(){
     : `<div class="empty">아직 실행한 명령이 없습니다.</div>`);
   lg.scrollTop = lg.scrollHeight;
 
+  // 범례 줄 끝의 "방금 실행한 명령". "o"는 명령이 뿌린 출력이라 건너뛰고 그 앞 명령 줄을 잡는다
+  const cc = $("curCmd");
+  const last = [...S.log].reverse().find(l => l.k !== "o");
+  cc.hidden = !last;
+  if(last){ cc.className = last.k || ""; cc.textContent = last.t; }
+
   const box = document.querySelector(".map-scroll");
   box.scrollLeft = box.scrollWidth;                 // 기본은 가장 최근 역
   const c0 = cur();                                 // clone 전에는 현재 브랜치가 없다
@@ -1238,12 +1275,14 @@ function drawSteps(){
   }).join("");
   $("btnNext").textContent = stepIdx >= scenario.steps.length ? "끝났습니다" : "다음 단계";
   $("btnNext").disabled = stepIdx >= scenario.steps.length;
+  $("btnPrev").disabled = !stepStack.length;
 }
 function setMode(m){
   mode = m;
   // 시나리오 버튼은 묶음(.group) 안에 있어 직계 자식만 훑으면 놓친다
   $("modes").querySelectorAll("[data-mode]").forEach(b=> b.setAttribute("aria-pressed", b.dataset.mode===m));
   seenNodes = new Set(); seenEdges = new Set(); prevPos = new Map();
+  stepStack = [];                                  // drawSteps보다 먼저 비워야 "이전"이 꺼진 채로 시작한다
   // clone 시나리오만 "내 컴퓨터가 빈 채로 서버에만 저장소가 있는" 상태에서 출발하고,
   // commit 시나리오는 서버도 저장소도 없는 빈 폴더에서 출발한다.
   // push 시나리오는 원격이 처음 등장하는 곳이라 원격 없이 시작해 remote add부터 직접 한다
@@ -1278,7 +1317,25 @@ $("btnPull").onclick   = cmdPull;
 $("btnPush").onclick   = cmdPush;
 $("btnUndo").onclick   = cmdUndo;
 $("btnReset").onclick  = ()=>{ seenNodes=new Set(); seenEdges=new Set(); prevPos=new Map(); fresh(); say("처음 상태로 돌아왔습니다."); render(); };
-$("btnNext").onclick   = ()=>{ if(stepIdx<scenario.steps.length){ scenario.steps[stepIdx].run(); stepIdx++; drawSteps(); } };
+// 설명 문구도 함께 담는다. 상태만 되돌리면 방금 단계의 설명이 남아 그림과 어긋난다
+$("btnNext").onclick   = ()=>{
+  if(stepIdx >= scenario.steps.length) return;
+  stepStack.push({ s:clone(S), note:$("note").innerHTML, msg:$("msg").value });
+  scenario.steps[stepIdx].run(); stepIdx++; drawSteps();
+};
+// 명령을 거꾸로 실행하지 않는다 — 상태를 통째로 되돌린다 (tourJump가 덧실행으로 겪은 함정)
+$("btnPrev").onclick   = ()=>{
+  const p = stepStack.pop();
+  if(!p) return;
+  S = p.s; $("note").innerHTML = p.note; $("msg").value = p.msg;
+  stepIdx--;
+  // 사라진 역·선로만 추적 집합에서 걷어낸다. 통째로 비우면 다시 앞으로 갈 때
+  // 화면의 모든 역이 한꺼번에 등장 애니메이션을 다시 탄다
+  seenNodes = new Set([...seenNodes].filter(id => S.commits[id]));
+  seenEdges = new Set([...seenEdges].filter(k => S.commits[k.split(">")[1]]));
+  prevPos = new Map();          // 없어진 역에서 날아오는 유령 이동 방지
+  drawSteps(); render();
+};
 $("btnRestart").onclick= ()=>setMode(mode);
 $("modes").onclick = e=>{ if(e.target.dataset.mode) setMode(e.target.dataset.mode); };
 $("msg").onkeydown = e=>{ if(e.key==="Enter") $("btnAdd").click(); };

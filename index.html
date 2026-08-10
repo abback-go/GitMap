@@ -1690,7 +1690,12 @@ function tourPlace(mayScroll){
     const m = document.querySelector(".panel.map").getBoundingClientRect();
     const limit = innerHeight - tipH - 22;
     let top = Math.max(m.bottom, b1 ? b1.y + b1.h : 0) + TOUR_DOCK;
-    if(top > limit) top = Math.min(limit, (b1 ? b1.y : m.top) - tipH - TOUR_DOCK);
+    if(top > limit){
+      // 대상 위로 뒤집는다. limit로 다시 깎으면 도로 아래로 내려가 대상을 덮는다.
+      // 위에도 자리가 없으면(노선도처럼 화면을 거의 다 쓰는 대상) 아래에 붙일 수밖에 없다
+      const up = (b1 ? b1.y : m.top) - tipH - TOUR_DOCK;
+      top = up >= 12 ? up : limit;
+    }
     tEls.tip.style.top = Math.max(12, top) + "px";
     tEls.tip.style.bottom = "auto";
     tEls.tip.style.left = (m.left + m.width/2) + "px";   // 노선도 폭에 맞춰 중앙. 오른쪽 조작판을 가리지 않는다

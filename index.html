@@ -226,6 +226,14 @@
   @keyframes draw{from{stroke-dashoffset:var(--len)}to{stroke-dashoffset:0}}
   .enter{animation:pop .34s cubic-bezier(.34,1.56,.64,1) both}
   .edge-enter{animation:draw .4s ease-out both}
+  /* 받아온 역이 서버 구역에서 내 구역으로 올라오는 이동.
+     translate만 건드린다 — 크기 애니메이션은 안쪽 그룹(gi)이 따로 맡는다 */
+  .node-move{transition:transform .5s cubic-bezier(.32,.72,.28,1)}
+  /* 자리가 바뀐 선로는 새 자리에서 서서히 나타난다.
+     양 끝이 따로 움직이므로 선을 이어서 끌고 갈 수가 없다 */
+  .edge-fade{animation:edgeFade .5s ease-out backwards}
+  @keyframes edgeFade{from{opacity:0}}
+
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 
@@ -352,6 +360,9 @@ const remoteOf = name => S.branches[RPFX + name];
 const remotes = () => Object.values(S.branches).filter(b => b.remote);
 
 let S, undoStack = [], seenNodes = new Set(), seenEdges = new Set();
+// 직전 render의 역 좌표. 자리가 바뀐 역을 이전 자리에서 새 자리로 옮겨 그린다
+// (pull로 받아온 역이 서버 구역에서 내 구역으로 올라오는 것을 보여준다)
+let prevPos = new Map();
 let mode = "free", scenario = null, stepIdx = 0;
 
 const $ = id => document.getElementById(id);
@@ -816,6 +827,13 @@ function render(){
                 y: topPad + rowIdx(id)*ROW_H + (rowKind(id) === "R" ? R_CAP : 0) };
   });
 
+  // 자리가 바뀐 역. pull로 받아와 서버 구역에서 올라오는 경우가 대표적이다
+  const movedIds = new Set();
+  S.order.forEach(id=>{
+    const pv = prevPos.get(id), p = pos[id];
+    if(pv && (Math.abs(pv.x - p.x) > 0.5 || Math.abs(pv.y - p.y) > 0.5)) movedIds.add(id);
+  });
+
   let rightEnd = Math.max(...Object.values(pos).map(p=>p.x), PAD_X) + 60;
   Object.keys(labels).forEach(cid=>{ rightEnd = Math.max(rightEnd, pos[cid].x + lblRight(labels[cid])); });
   // 서버 띠의 이름표 묶음은 역 아래 가운데 정렬이라 오른쪽으로 묶음 폭의 절반만큼 나간다
@@ -905,6 +923,8 @@ function render(){
         path.style.setProperty("--len", L);
         path.style.strokeDasharray = L;
         path.addEventListener("animationend", ()=>{ path.style.strokeDasharray = "none"; });
+      } else if(movedIds.has(id) || movedIds.has(pid)){
+        path.classList.add("edge-fade");   // 양 끝이 움직이는 동안 새 자리에서 떠오른다
       }
       seenEdges.add(key);
       svg.appendChild(path);
@@ -919,6 +939,16 @@ function render(){
     if(live && !soft && !seenNodes.has(id)) gi.classList.add("enter");
     seenNodes.add(id);
     g.appendChild(gi);
+    // 자리가 바뀐 역은 이전 자리에 놓고 다음 프레임에 새 자리로 옮긴다.
+    // CSS transform이 SVG transform 속성을 대신하므로 애니메이션이 끝나도 자리가 유지된다
+    if(movedIds.has(id)){
+      const pv = prevPos.get(id);
+      g.style.transform = `translate(${pv.x}px,${pv.y}px)`;
+      requestAnimationFrame(()=>requestAnimationFrame(()=>{
+        g.classList.add("node-move");
+        g.style.transform = `translate(${p.x}px,${p.y}px)`;
+      }));
+    }
 
     gi.appendChild(el("circle",{ r:15, fill:"#fff",
       stroke: !live ? "#AEB8C4" : (soft ? REMOTE_COLOR : c.color),
@@ -1043,6 +1073,9 @@ function render(){
   const c0 = cur();                                 // clone 전에는 현재 브랜치가 없다
   const hx = c0 && c0.head ? pos[c0.head].x : null; // 좁은 화면에서 HEAD가 잘리면 그쪽으로
   if(hx !== null && hx < box.scrollLeft + 40) box.scrollLeft = Math.max(0, hx - 60);
+
+  // 다음 render에서 "어디서 옮겨 왔는지" 알기 위해 이번 자리를 남긴다
+  prevPos = new Map(S.order.map(id => [id, { x:pos[id].x, y:pos[id].y }]));
 }
 
 /* ───────── 시나리오 ───────── */
@@ -1145,7 +1178,7 @@ function setMode(m){
   mode = m;
   // 시나리오 버튼은 묶음(.group) 안에 있어 직계 자식만 훑으면 놓친다
   $("modes").querySelectorAll("[data-mode]").forEach(b=> b.setAttribute("aria-pressed", b.dataset.mode===m));
-  seenNodes = new Set(); seenEdges = new Set();
+  seenNodes = new Set(); seenEdges = new Set(); prevPos = new Map();
   // clone 시나리오만 "내 컴퓨터가 빈 채로 서버에만 저장소가 있는" 상태에서 출발한다.
   // push 시나리오는 원격을 다루므로 자유 모드와 같은 시작 상태가 필요하다
   if(m === "clone") freshClone(); else fresh(m === "free" || m === "push" || m === "pr");
@@ -1176,7 +1209,7 @@ $("btnFetch").onclick  = cmdFetch;
 $("btnPull").onclick   = cmdPull;
 $("btnPush").onclick   = cmdPush;
 $("btnUndo").onclick   = cmdUndo;
-$("btnReset").onclick  = ()=>{ seenNodes=new Set(); seenEdges=new Set(); fresh(); say("처음 상태로 돌아왔습니다."); render(); };
+$("btnReset").onclick  = ()=>{ seenNodes=new Set(); seenEdges=new Set(); prevPos=new Map(); fresh(); say("처음 상태로 돌아왔습니다."); render(); };
 $("btnNext").onclick   = ()=>{ if(stepIdx<scenario.steps.length){ scenario.steps[stepIdx].run(); stepIdx++; drawSteps(); } };
 $("btnRestart").onclick= ()=>setMode(mode);
 $("modes").onclick = e=>{ if(e.target.dataset.mode) setMode(e.target.dataset.mode); };
@@ -1299,7 +1332,8 @@ const tourCapture = () => ({ s:clone(S), undo:clone(undoStack),
   msg:$("msg").value, bname:$("bname").value });
 function tourRestore(k){
   S = clone(k.s); undoStack = clone(k.undo);
-  seenNodes = new Set(k.nodes); seenEdges = new Set(k.edges);
+  // 되감기는 이동 애니메이션 없이 그 자리에서 다시 그린다 (거꾸로 흐르면 어지럽다)
+  seenNodes = new Set(k.nodes); seenEdges = new Set(k.edges); prevPos = new Map();
   $("note").innerHTML = k.note;
   if(k.msg   !== undefined) $("msg").value   = k.msg;
   if(k.bname !== undefined) $("bname").value = k.bname;

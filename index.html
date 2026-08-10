@@ -228,6 +228,7 @@
       <button data-mode="merge" aria-pressed="false">시나리오 · Merge</button>
       <button data-mode="rebase" aria-pressed="false">시나리오 · Rebase</button>
       <button data-mode="clone" aria-pressed="false">시나리오 · Clone</button>
+      <button data-mode="push" aria-pressed="false">시나리오 · Push</button>
     </div>
   </header>
 
@@ -1043,6 +1044,19 @@ const SCEN = {
       { cmd:['git add .','git commit -m "보스 패턴 추가"'], run:()=>cmdCommit("보스 패턴 추가", true) },
       { cmd:'git push', run:()=>cmdPush() }
     ]
+  },
+  // 팀 작업에서 가장 자주 만나는 사고. push가 막히는 게 고장이 아니라 안전장치임을 보여준다
+  push: {
+    title:"push가 거절될 때",
+    intro:"팀 작업에서 <b>가장 자주 만나는 사고</b>입니다. <code>push</code>가 막히는 게 고장이 아니라 <b>안전장치</b>라는 걸 확인해 보세요. 아래 ‘다음 단계’를 눌러 한 줄씩 실행하세요.",
+    steps:[
+      { cmd:['git add .','git commit -m "적 AI 추가"'], run:()=>cmdCommit("적 AI 추가", true) },
+      // 내가 작업하는 사이 서버가 앞서 나간다. 내 브랜치도 known도 안 움직인다
+      { cmd:'# 팀원이 원격에 "UI 폰트 교체" 커밋을 올렸습니다', run:()=>cmdTeamCommit("UI 폰트 교체") },
+      { cmd:'git push', run:()=>cmdPush() },      // 거절된다 (non-fast-forward)
+      { cmd:'git pull', run:()=>cmdPull() },      // 갈라져 있으므로 환승역이 생긴다
+      { cmd:'git push', run:()=>cmdPush() }       // 이번엔 올라간다
+    ]
   }
 };
 function drawSteps(){
@@ -1061,8 +1075,9 @@ function setMode(m){
   mode = m;
   [...$("modes").children].forEach(b=>{ if(b.dataset.mode) b.setAttribute("aria-pressed", b.dataset.mode===m); });
   seenNodes = new Set(); seenEdges = new Set();
-  // clone 시나리오만 "내 컴퓨터가 빈 채로 서버에만 저장소가 있는" 상태에서 출발한다
-  if(m === "clone") freshClone(); else fresh(m === "free");
+  // clone 시나리오만 "내 컴퓨터가 빈 채로 서버에만 저장소가 있는" 상태에서 출발한다.
+  // push 시나리오는 원격을 다루므로 자유 모드와 같은 시작 상태가 필요하다
+  if(m === "clone") freshClone(); else fresh(m === "free" || m === "push");
   if(m==="free"){
     $("freePanel").style.display=""; $("stepPanel").style.display="none";
     say("브랜치를 만들고 커밋해보세요.");

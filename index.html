@@ -841,7 +841,7 @@ function cmdMerge(name){
   const t = S.branches[name], c = cur();
   if(!t || name===S.head) return say("현재 브랜치와 다른 브랜치를 골라주세요.");
   if(!t.head) return say(`<b>${esc(name)}</b>에는 커밋이 없습니다.`);
-  if(isAncestor(t.head, c.head)) { log(`git merge ${name}`); say(`이미 <b>${esc(name)}</b>의 내용을 전부 갖고 있어서 아무 일도 일어나지 않습니다. (Already up to date)`); return; }
+  if(isAncestor(t.head, c.head)) { snap(); log(`git merge ${name}`); say(`이미 <b>${esc(name)}</b>의 내용을 전부 갖고 있어서 아무 일도 일어나지 않습니다. (Already up to date)`); render(); return; }
   snap();
   if(isAncestor(c.head, t.head)){
     c.head = t.head;
@@ -1003,7 +1003,7 @@ function cmdTeamCommit(msg){
 function cmdFetch(){
   if(!remoteGuard()) return;
   const behind = remotes().filter(r => r.known !== r.head);
-  if(!behind.length){ log(`git fetch`); say("서버에 새 역이 없습니다. 가져올 것이 없습니다."); return; }
+  if(!behind.length){ snap(); log(`git fetch`); say("서버에 새 역이 없습니다. 가져올 것이 없습니다."); render(); return; }
   snap();
   behind.forEach(r => { r.known = r.head; });
   log(`git fetch`);
@@ -1058,7 +1058,8 @@ function cmdPull(){
   if(!conflictGuard() || !remoteGuard()) return;
   const c = cur(), r = remoteOf(c.name);
   if(!r){ say(`<b>${esc(c.name)}</b>는 아직 서버에 없습니다. 먼저 <b>push</b>로 올려 두세요.`); return; }
-  if(r.head === c.head) { r.known = r.head; log(`git pull`); say("이미 원격과 같은 위치입니다. (Already up to date)"); render(); return; }
+  // known을 옮기므로 저장소가 실제로 바뀐다 — snap()이 특히 필요한 자리다
+  if(r.head === c.head) { snap(); r.known = r.head; log(`git pull`); say("이미 원격과 같은 위치입니다. (Already up to date)"); render(); return; }
   if(isAncestor(r.head, c.head)) { log(`git pull`); say("원격에 새 역이 없습니다. 내 쪽이 앞서 있으니 <b>push</b>를 쓰세요."); return; }
   snap();
   r.known = r.head;                       // pull = fetch + merge. 앞의 fetch 부분

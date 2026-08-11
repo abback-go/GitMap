@@ -94,7 +94,7 @@
   .map-scroll{overflow-x:auto;overflow-y:hidden}
 
   /* ── 커밋 두 단계 흐름 (대합실 → 승강장 → 노선도) ──
-     add·commit이 주제인 Commit 시나리오에서만 뜬다. 지하철 은유를 그대로 쓴다 —
+     Commit 시나리오와 자유 모드에서 뜬다. 지하철 은유를 그대로 쓴다 —
      승객이 개찰구를 지나 열차를 타야 역이 노선도에 찍힌다 */
   .flow{display:flex;align-items:stretch;gap:6px;margin:0 2px 10px;padding:0}
   .flow[hidden]{display:none}
@@ -391,8 +391,8 @@
            Merge·Rebase에서 사라지고(여유 169·123px), 범례 줄 끝은 남는 자리가 창 폭에
            따라 0까지 줄어 잘렸다. 자기 줄을 줘야 폭이 보장된다 -->
       <div class="cmdbar" id="curCmd"></div>
-      <!-- 커밋이 두 단계라는 걸 보여주는 자리. add·commit이 주제인 Commit 시나리오에서만 뜬다.
-           자유 모드는 조작판의 "담긴 변경" 박스가 같은 일을 한다 -->
+      <!-- 커밋이 두 단계라는 걸 보여주는 자리. add·commit을 직접 다루는
+           Commit 시나리오와 자유 모드에서 뜬다 -->
       <div class="flow" id="flowBar" data-at="none" hidden>
         <div class="fz" data-z="work"><span class="fzn">대합실</span><i class="fdot"></i></div>
         <div class="farr" data-a="add">add</div>
@@ -958,14 +958,16 @@ function log(t, k){ S.log.push({t, k}); }
 function say(html){ $("note").innerHTML = html; }
 
 /* ───────── 그리기 ───────── */
-// 커밋 두 단계 흐름 띠. Commit 시나리오에서만 뜨고, 승객이 지금 어느 구역에 있는지 보인다.
+// 커밋 두 단계 흐름 띠. 승객이 지금 어느 구역에 있는지 보인다.
 // 커밋 직후에는 "노선도" 칸을 잠깐 밝혀 역이 생기는 순간을 잇는다 — 그 사이 render()가
 // 상태를 덮지 않도록 flowHold로 붙잡는다
 let flowHold = false, flowTimer = null;
 function flowUpdate(){
   const b = $("flowBar");
   if(!b) return;
-  b.hidden = mode !== "commit";
+  // add·commit을 직접 다루는 두 곳에서만 뜬다. merge·rebase·push·pr·clone은
+  // 브랜치와 원격이 주제라 커밋 두 단계가 화면을 차지할 이유가 없다
+  b.hidden = !(mode === "commit" || mode === "free");
   if(b.hidden) return;
   const want = S.staged ? "stage" : (($("msg").value || "").trim() ? "work" : "none");
   // 커밋 직후에는 갈 곳이 "none"뿐이라 잠깐 노선도 칸을 붙잡는다. 다만 다음 동작이

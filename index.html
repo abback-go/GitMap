@@ -1827,6 +1827,24 @@ const TOUR = [
   { sel:".map", title:"환승역이 생겼습니다",
     body:"가운데가 채워진 동그라미가 <b>병합 커밋</b>입니다. Git에서 <b>부모가 둘인 유일한 커밋</b>이고, 갈라졌던 기록이 그대로 남습니다. 서버 띠의 <code>origin/feature-jump</code>는 <b>올렸던 자리에 그대로</b> 있는데, 이름표는 저마다 따로 움직이기 때문입니다." },
 
+  // 여기까지는 양쪽이 서로 다른 파일을 고쳐 자동으로 합쳐졌다.
+  // 같은 파일을 고치면 어떻게 되는지 직접 겪어 본다 (3번 Conflict 시나리오의 예고편)
+  { sel:"#bname", title:"이번엔 같은 파일을 고쳐 봅니다",
+    body:"지금까지 합쳐진 건 <b>양쪽이 서로 다른 파일</b>을 고쳤기 때문입니다. 이제 <code>feature-ui</code> 노선과 <code>main</code> <b>양쪽에서 같은 파일</b> <code>style.css</code>를 고쳐 두겠습니다 — 아래 로그에 <b>여섯 줄</b>이 한꺼번에 찍히는 게 그 준비입니다.",
+    act:()=>{ cmdBranch("feature-ui");
+              $("msg").value = "버튼 색 변경";   cmdAdd("style.css"); cmdCommit();
+              cmdSwitch("main");
+              $("msg").value = "폰트 크기 조정"; cmdAdd("style.css"); cmdCommit(); } },
+
+  { sel:"#selMerge", title:"합치려는데 멈춥니다",
+    body:"<b>충돌은 고장이 아닙니다.</b> 같은 파일을 양쪽이 다르게 고쳐서 <b>git이 어느 쪽이 맞는지 모르는</b> 것뿐입니다. 그래서 <b>사람에게 물어봅니다</b>. 노선도를 보세요 — 두 노선이 만나려다 멈춘 자리가 <b>빨간 점선</b>으로 표시되고, <b>환승역은 아직 없습니다</b>.",
+    act:()=>cmdMerge("feature-ui") },
+
+  // act가 충돌을 끝내므로 #cfxBox는 이 단계가 끝나면 사라진다. 결과가 남는 노선도를 가리킨다
+  { sel:".map", title:"고르고, 담고, 커밋",
+    body:"붉은 상자에서 <b>어느 쪽을 남길지</b> 골랐습니다. 고르는 건 <b>파일을 고치는 일</b>이라 저장소는 그대로고, <code>add</code>로 담아야 git이 &quot;해결됐다&quot;고 봅니다. 방금 <code>commit</code>까지 하자 <b>환승역이 생기며</b> 병합이 끝났습니다 — <b>충돌 해결도 결국 커밋</b>입니다. 직접 눌러 보려면 <b>3번 Conflict</b> 시나리오를 돌려 보세요.",
+    act:()=>{ cmdResolve("both"); cmdAdd(); cmdCommit(); } },
+
   { ch:"3부 · 정리", sel:".legend", title:"기호 읽는 법",
     body:"빈 동그라미는 보통 커밋, 가운데가 찬 동그라미는 병합 커밋입니다. 테두리가 <b>점</b>으로 흩어진 회색 동그라미는 rebase 후 <b>버려진</b> 커밋, 테두리가 <b>파선</b>인 진회색 동그라미는 서버에는 있지만 <b>아직 받지 않은</b> 역입니다." },
 

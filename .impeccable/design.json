@@ -1,0 +1,147 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-11T00:00:00+09:00",
+  "title": "Design System: GitMap",
+  "extensions": {
+    "colorMeta": {
+      "head-pink": { "role": "primary", "displayName": "HEAD 분홍", "canonical": "#E6186C", "tonalRamp": ["oklch(15% 0.2 5)", "oklch(26% 0.2 5)", "oklch(37% 0.2 5)", "oklch(48% 0.2 5)", "oklch(60% 0.2 5)", "oklch(72% 0.15 5)", "oklch(84% 0.09 5)", "oklch(95% 0.03 5)"] },
+      "seoul-line-1-blue": { "role": "secondary", "displayName": "1호선 파랑", "canonical": "#0052A4", "tonalRamp": ["oklch(15% 0.11 255)", "oklch(26% 0.12 255)", "oklch(37% 0.13 255)", "oklch(48% 0.13 255)", "oklch(60% 0.12 255)", "oklch(72% 0.09 255)", "oklch(84% 0.06 255)", "oklch(95% 0.02 255)"] },
+      "seoul-line-2-green": { "role": "secondary", "displayName": "2호선 초록", "canonical": "#00A84D", "tonalRamp": ["oklch(15% 0.08 150)", "oklch(26% 0.11 150)", "oklch(37% 0.14 150)", "oklch(48% 0.16 150)", "oklch(60% 0.17 150)", "oklch(72% 0.14 150)", "oklch(84% 0.09 150)", "oklch(95% 0.03 150)"] },
+      "seoul-line-3-orange": { "role": "secondary", "displayName": "3호선 주황", "canonical": "#EF7C1C", "tonalRamp": ["oklch(15% 0.05 55)", "oklch(26% 0.08 55)", "oklch(37% 0.11 55)", "oklch(48% 0.14 55)", "oklch(60% 0.16 55)", "oklch(72% 0.15 55)", "oklch(84% 0.1 55)", "oklch(95% 0.04 55)"] },
+      "seoul-line-4-sky": { "role": "secondary", "displayName": "4호선 하늘", "canonical": "#00A5DE", "tonalRamp": ["oklch(15% 0.05 230)", "oklch(26% 0.07 230)", "oklch(37% 0.09 230)", "oklch(48% 0.11 230)", "oklch(60% 0.12 230)", "oklch(72% 0.11 230)", "oklch(84% 0.07 230)", "oklch(95% 0.02 230)"] },
+      "seoul-line-5-purple": { "role": "secondary", "displayName": "5호선 보라", "canonical": "#996CAC", "tonalRamp": ["oklch(15% 0.05 315)", "oklch(26% 0.07 315)", "oklch(37% 0.08 315)", "oklch(48% 0.09 315)", "oklch(60% 0.09 315)", "oklch(72% 0.08 315)", "oklch(84% 0.05 315)", "oklch(95% 0.02 315)"] },
+      "earth-brown": { "role": "secondary", "displayName": "갈색", "canonical": "#B5651D", "tonalRamp": ["oklch(15% 0.04 55)", "oklch(26% 0.07 55)", "oklch(37% 0.09 55)", "oklch(48% 0.11 55)", "oklch(60% 0.12 55)", "oklch(72% 0.1 55)", "oklch(84% 0.07 55)", "oklch(95% 0.03 55)"] },
+      "ink": { "role": "neutral", "displayName": "잉크", "canonical": "#141C26", "tonalRamp": ["oklch(15% 0.02 250)", "oklch(26% 0.02 250)", "oklch(37% 0.02 250)", "oklch(48% 0.02 250)", "oklch(60% 0.02 250)", "oklch(72% 0.015 250)", "oklch(84% 0.01 250)", "oklch(95% 0.005 250)"] },
+      "ink-soft": { "role": "neutral", "displayName": "연한 잉크", "canonical": "#5B6876", "tonalRamp": ["oklch(15% 0.02 250)", "oklch(26% 0.02 250)", "oklch(37% 0.02 250)", "oklch(48% 0.02 250)", "oklch(60% 0.02 250)", "oklch(72% 0.015 250)", "oklch(84% 0.01 250)", "oklch(95% 0.005 250)"] },
+      "fog-paper": { "role": "neutral", "displayName": "안개 종이", "canonical": "#EDF0F5", "tonalRamp": ["oklch(15% 0.01 250)", "oklch(26% 0.01 250)", "oklch(37% 0.01 250)", "oklch(48% 0.01 250)", "oklch(60% 0.01 250)", "oklch(72% 0.008 250)", "oklch(84% 0.006 250)", "oklch(95% 0.005 250)"] },
+      "rule-line": { "role": "neutral", "displayName": "괘선", "canonical": "#D3DAE3", "tonalRamp": ["oklch(15% 0.012 250)", "oklch(26% 0.012 250)", "oklch(37% 0.012 250)", "oklch(48% 0.012 250)", "oklch(60% 0.012 250)", "oklch(72% 0.012 250)", "oklch(84% 0.012 250)", "oklch(95% 0.008 250)"] },
+      "ghost-gray": { "role": "neutral", "displayName": "유령 회색 (rebase 버려짐)", "canonical": "#AEB8C4", "tonalRamp": ["oklch(15% 0.015 250)", "oklch(26% 0.015 250)", "oklch(37% 0.015 250)", "oklch(48% 0.015 250)", "oklch(60% 0.015 250)", "oklch(72% 0.015 250)", "oklch(84% 0.012 250)", "oklch(95% 0.008 250)"] },
+      "reject-red": { "role": "error", "displayName": "거절 빨강", "canonical": "#B02A37", "tonalRamp": ["oklch(15% 0.09 20)", "oklch(26% 0.12 20)", "oklch(37% 0.14 20)", "oklch(48% 0.16 20)", "oklch(60% 0.15 20)", "oklch(72% 0.12 20)", "oklch(84% 0.07 20)", "oklch(95% 0.025 20)"] },
+      "staged-green": { "role": "success", "displayName": "담김 초록", "canonical": "#4A7A38", "tonalRamp": ["oklch(15% 0.05 135)", "oklch(26% 0.07 135)", "oklch(37% 0.09 135)", "oklch(48% 0.1 135)", "oklch(60% 0.1 135)", "oklch(72% 0.09 135)", "oklch(84% 0.06 135)", "oklch(95% 0.025 135)"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "페이지 제목 h1 하나뿐." },
+      "label": { "displayName": "패널 머리글", "purpose": "uppercase + 넓은 자간. 명령·원격 저장소 등 묶음 이름." },
+      "map-label": { "displayName": "노선도 이름표", "purpose": "역 메시지·브랜치 알약. LBL_FONT 실측 문자열과 14px로 묶임." },
+      "command": { "displayName": "명령 띠", "purpose": "방금 실행한 git 명령. $ 접두는 HEAD 분홍." },
+      "log": { "displayName": "명령 로그", "purpose": "터미널에 옮겨 칠 명령이 쌓이는 곳." }
+    },
+    "shadows": [
+      { "name": "panel-ambient", "value": "0 1px 2px rgba(20,28,38,.06), 0 8px 24px rgba(20,28,38,.07)", "purpose": "카드 패널 기본. 은은한 이중 그림자." },
+      { "name": "tip-float", "value": "0 18px 50px rgba(0,0,0,.32)", "purpose": "화면 위에 떠 있는 안내 말풍선." },
+      { "name": "spotlight-ring", "value": "0 0 0 3px #E6186C", "purpose": "안내가 밝힌 자리의 강조 테두리." }
+    ],
+    "motion": [
+      { "name": "pop", "value": "0.34s cubic-bezier(.34,1.56,.64,1)", "purpose": "새 역 등장 overshoot." },
+      { "name": "draw", "value": "0.4s ease-out", "purpose": "선로가 stroke-dashoffset으로 그려짐." },
+      { "name": "node-move", "value": "0.5s cubic-bezier(.32,.72,.28,1)", "purpose": "fetch/pull로 받은 역이 서버 구역에서 올라오는 이동." },
+      { "name": "spotlight", "value": "0.35s cubic-bezier(.4,0,.2,1)", "purpose": "안내 스포트라이트·마스크 이동." },
+      { "name": "state", "value": "0.15s", "purpose": "hover 등 일반 상태 전환." }
+    ],
+    "breakpoints": [
+      { "name": "mobile-label", "value": "560px" },
+      { "name": "one-column", "value": "900px" },
+      { "name": "wide-console", "value": "1400px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Command Button",
+      "kind": "button",
+      "refersTo": "button-command",
+      "description": "git 명령 대응 버튼. 라벨은 명령어 원문, 잉크 단색으로 터미널처럼 단단하게.",
+      "html": "<button class=\"ds-btn-cmd\">commit</button>",
+      "css": ".ds-btn-cmd { font-family: 'Pretendard Variable', Pretendard, 'Malgun Gothic', system-ui, sans-serif; font-size: 16px; font-weight: 700; white-space: nowrap; padding: 9px 13px; border-radius: 8px; cursor: pointer; border: 1.5px solid #141C26; background: #141C26; color: #fff; transition: transform .1s, opacity .15s; } .ds-btn-cmd:hover { opacity: .85; } .ds-btn-cmd:active { transform: translateY(1px); } .ds-btn-cmd:focus-visible { outline: 2.5px solid #E6186C; outline-offset: 1px; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "조회·보조 동작. 투명 배경으로 명령 버튼보다 물러선다.",
+      "html": "<button class=\"ds-btn-ghost\">fetch</button>",
+      "css": ".ds-btn-ghost { font-family: 'Pretendard Variable', Pretendard, 'Malgun Gothic', system-ui, sans-serif; font-size: 16px; font-weight: 700; white-space: nowrap; padding: 9px 13px; border-radius: 8px; cursor: pointer; border: 1.5px solid #D3DAE3; background: transparent; color: #141C26; transition: transform .1s, opacity .15s; } .ds-btn-ghost:hover { border-color: #141C26; } .ds-btn-ghost:active { transform: translateY(1px); } .ds-btn-ghost:focus-visible { outline: 2.5px solid #E6186C; outline-offset: 1px; }"
+    },
+    {
+      "name": "Mode Pill",
+      "kind": "chip",
+      "refersTo": "mode-pill",
+      "description": "모드·시나리오 선택 알약. 선택되면 잉크 반전.",
+      "html": "<span><button class=\"ds-mode\" aria-pressed=\"false\">자유 모드</button> <button class=\"ds-mode\" aria-pressed=\"true\"><i class=\"ds-mode-num\">1</i>Commit</button></span>",
+      "css": ".ds-mode { font-family: 'Pretendard Variable', Pretendard, 'Malgun Gothic', system-ui, sans-serif; font-size: 16px; font-weight: 600; padding: 8px 14px; border-radius: 999px; cursor: pointer; border: 1.5px solid #D3DAE3; background: #FFFFFF; color: #5B6876; transition: all .15s; } .ds-mode:hover { border-color: #5B6876; } .ds-mode[aria-pressed=\"true\"] { background: #141C26; border-color: #141C26; color: #fff; } .ds-mode-num { font-style: normal; font-size: 12px; font-weight: 800; margin-right: 5px; padding: 1px 6px; border-radius: 999px; background: #D3DAE3; color: #4A5765; } .ds-mode[aria-pressed=\"true\"] .ds-mode-num { background: rgba(255,255,255,.26); color: #fff; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input-text",
+      "description": "커밋 메시지·브랜치 이름 입력칸.",
+      "html": "<input class=\"ds-input\" type=\"text\" value=\"로그인 버튼 색 수정\">",
+      "css": ".ds-input { font-family: 'Pretendard Variable', Pretendard, 'Malgun Gothic', system-ui, sans-serif; font-size: 16px; padding: 9px 11px; border: 1.5px solid #D3DAE3; border-radius: 8px; background: #EDF0F5; color: #141C26; } .ds-input:focus { outline: 2.5px solid #E6186C; outline-offset: 1px; }"
+    },
+    {
+      "name": "Tour CTA",
+      "kind": "button",
+      "refersTo": "tour-cta",
+      "description": "자동 안내 시작 버튼. HEAD 분홍을 쓰는 유일한 버튼.",
+      "html": "<button class=\"ds-tour-cta\">▶ 자동 안내</button>",
+      "css": ".ds-tour-cta { font-family: 'Pretendard Variable', Pretendard, 'Malgun Gothic', system-ui, sans-serif; font-size: 16px; font-weight: 800; padding: 9px 18px; border-radius: 999px; cursor: pointer; border: 1.5px solid #E6186C; background: #E6186C; color: #fff; transition: opacity .15s; } .ds-tour-cta:hover { opacity: .85; } .ds-tour-cta:focus-visible { outline: 2.5px solid #E6186C; outline-offset: 1px; }"
+    },
+    {
+      "name": "Command Bar",
+      "kind": "custom",
+      "refersTo": "cmdbar",
+      "description": "방금 실행한 명령 한 줄. 거절이면 빨강 + 배경 채움.",
+      "html": "<div><div class=\"ds-cmdbar\">git commit -m \"로그인 버튼 색 수정\"</div><div class=\"ds-cmdbar ds-cmdbar-e\">git push  (거절됨 — non-fast-forward)</div></div>",
+      "css": ".ds-cmdbar { height: 44px; line-height: 44px; padding: 0 12px; margin-bottom: 8px; border-radius: 8px; background: #EDF0F5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, 'SFMono-Regular', 'Cascadia Mono', Consolas, 'D2Coding', monospace; font-size: 18.5px; font-weight: 800; color: #141C26; } .ds-cmdbar::before { content: \"$ \"; color: #E6186C; } .ds-cmdbar-e { color: #B02A37; background: #FCEBEC; }"
+    },
+    {
+      "name": "Staged Box",
+      "kind": "custom",
+      "refersTo": "",
+      "description": "담긴 변경(스테이징) 표시. 초록 파선 = 아직 커밋 전 잠정 상태.",
+      "html": "<div class=\"ds-staged\"><span class=\"ds-staged-k\">담긴 변경</span><span>로그인 버튼 색 수정</span></div>",
+      "css": ".ds-staged { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border: 1.5px dashed #7FB069; border-radius: 9px; background: #F3F8F0; font-size: 15.5px; font-family: 'Pretendard Variable', Pretendard, 'Malgun Gothic', system-ui, sans-serif; color: #141C26; } .ds-staged-k { font-size: 13px; font-weight: 800; letter-spacing: .06em; color: #4A7A38; white-space: nowrap; }"
+    },
+    {
+      "name": "Branch Pill + HEAD Badge",
+      "kind": "custom",
+      "refersTo": "",
+      "description": "시그니처 — 노선색 알약 이름표와 HEAD 뱃지. 글씨색은 pillText() 대비 계산.",
+      "html": "<svg width=\"250\" height=\"40\" viewBox=\"0 0 250 40\" xmlns=\"http://www.w3.org/2000/svg\"><circle cx=\"20\" cy=\"20\" r=\"8.5\" fill=\"#fff\" stroke=\"#0052A4\" stroke-width=\"3\"/><rect x=\"40\" y=\"8\" width=\"58\" height=\"24\" rx=\"12\" fill=\"#0052A4\"/><text x=\"69\" y=\"24\" text-anchor=\"middle\" font-family=\"Pretendard, sans-serif\" font-size=\"14\" font-weight=\"800\" fill=\"#fff\">main</text><rect x=\"104\" y=\"7\" width=\"56\" height=\"26\" rx=\"13\" fill=\"#E6186C\"/><text x=\"132\" y=\"24\" text-anchor=\"middle\" font-family=\"Pretendard, sans-serif\" font-size=\"13\" font-weight=\"800\" fill=\"#fff\">HEAD</text><rect x=\"170\" y=\"8\" width=\"72\" height=\"24\" rx=\"12\" fill=\"#fff\" stroke=\"#5B6876\" stroke-width=\"2\"/><text x=\"206\" y=\"24\" text-anchor=\"middle\" font-family=\"Pretendard, sans-serif\" font-size=\"12.5\" font-weight=\"600\" fill=\"#5B6876\">origin/main</text></svg>",
+      "css": ""
+    }
+  ],
+  "narrative": {
+    "northStar": "서울 지하철 노선도",
+    "overview": "이 시스템은 은유를 장식으로 쓰지 않고 데이터 인코딩으로 쓴다. 커밋은 역, 브랜치는 노선, 병합 커밋은 환승역이고, 노선 색 여섯은 실제 서울 지하철 노선색이다. 화면의 모든 시각 결정 — 알약형 이름표, 원형 역, 굵은 실선 선로, 밝은 노선 위 검은 글씨 — 은 실제 노선도 인쇄물의 관행을 따른다. 두 번째 축은 터미널이다. 명령에 해당하는 모든 것은 모노스페이스 + $ 접두 + 진한 굵기로 그려 진짜 터미널을 닮는다. 노선도(은유)와 터미널(실전)이 한 화면에서 짝지어지는 것이 이 시스템의 정체성이다.",
+    "keyCharacteristics": [
+      "노선 색 = 실제 서울 지하철 노선색. 은유의 핵심이라 불변",
+      "HEAD 분홍(#E6186C)이 유일한 브랜드 악센트 — \"지금 여기\"만 가리킨다",
+      "상태 구분은 색 + 선 종류를 항상 함께 (점선 = 버려짐, 파선 = 아직 안 받음)",
+      "거절·오류는 숨기지 않고 배경까지 칠해 뒷자리에서도 읽히게",
+      "교수 시연이 주 장면: 16px 본문, 굵은 무게, 대비 기준 엄수"
+    ],
+    "rules": [
+      { "name": "The Line-Color Rule", "body": "노선색 여섯은 서울 지하철 실물이다. 추가는 되어도 교체는 안 된다. 알약 글씨색은 고정값이 아니라 pillText() 대비 계산으로 검정/흰색을 고른다.", "section": "colors" },
+      { "name": "The One-Pink Rule", "body": "#E6186C은 \"현재 위치·주목\"만 뜻한다. HEAD, $, focus, 안내 스포트라이트 외에 쓰면 의미가 무너진다.", "section": "colors" },
+      { "name": "The Contrast-Floor Rule", "body": "본문 글자는 #5B6876(대비 4.99+)까지만 흐려진다. #8A96A4·#9AA5B1은 기준(4.5) 미달로 퇴출된 전력이 있다.", "section": "colors" },
+      { "name": "The Terminal-Truth Rule", "body": "모노스페이스와 $ 접두는 실제 터미널에 옮겨 칠 수 있는 문자열에만 붙는다. 팀원·GitHub이 한 일은 #, 명령의 출력은 접두 없음.", "section": "typography" },
+      { "name": "The Bundle Rule", "body": "글자 크기와 좌표 상수는 한 묶음이다. 14px를 바꾸면 알약 높이(24)·흰 바탕(32)·HEAD 뱃지(56×26)·lblW 여백(+24)·LBL_FONT가 함께 움직여야 한다.", "section": "typography" },
+      { "name": "The Zone Rule", "body": "위 구역 = 내 컴퓨터, 아래 회색 띠 = 팀 공용 서버. 역이 어느 구역에 있는가가 곧 의미이므로, 레이아웃 변경이 이 경계를 흐리면 안 된다.", "section": "layout" },
+      { "name": "The Symbol-Pair Rule", "body": "상태 구분은 색과 선 종류를 항상 함께 바꾼다. 색 하나로만 구분하면 학생이 못 알아본다. 범례 아이콘도 같은 규칙을 따라야 한다.", "section": "shapes" }
+    ],
+    "dos": [
+      "Do 알약 글씨색을 pillText(color)로 계산한다. COLORS에 색을 추가해도 자동으로 걸린다.",
+      "Do 상태를 색 + 선 종류로 함께 구분하고, 범례 아이콘을 같은 규칙으로 맞춘다.",
+      "Do 이름표 폭을 textW()로 실측한다. Pretendard는 고정폭이 아니라 글자 수 어림은 한글 10자부터 넘친다.",
+      "Do 거절·오류를 배경색까지 칠해 원거리에서 읽히게 한다.",
+      "Do 글자 크기를 바꿀 때 좌표 상수 묶음(알약 24 · 흰 바탕 32 · HEAD 뱃지 56×26 · LBL_FONT)을 함께 움직인다."
+    ],
+    "donts": [
+      "Don't 노선색 팔레트·지하철 은유·Pretendard를 교체하지 않는다 (브랜드 불변).",
+      "Don't #8A96A4·#9AA5B1 등 대비 4.5 미만 회색을 본문에 쓰지 않는다. 흐림의 하한은 #5B6876.",
+      "Don't HEAD 분홍을 상태 표시 밖 장식에 쓰지 않는다.",
+      "Don't 노선도 SVG 내부에 그림자·입체 효과를 넣지 않는다 — 인쇄물 은유대로 평평하게.",
+      "Don't 1fr 그리드 트랙에 nowrap 버튼을 그대로 두지 않는다. minmax(0,1fr)로 못박는다."
+    ]
+  }
+}

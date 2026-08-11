@@ -1,4 +1,4 @@
-# Git 노선도
+# 지하철 노선도로 배우는 Git & GitHub
 
 ## ▶ [여기를 눌러 바로 열기](https://abback-go.github.io/GitMap/)
 

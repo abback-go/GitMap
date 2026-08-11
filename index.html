@@ -92,6 +92,49 @@
   /* ── 노선도 ── */
   .map{padding:6px;overflow:hidden;position:relative}
   .map-scroll{overflow-x:auto;overflow-y:hidden}
+
+  /* ── 커밋 두 단계 흐름 (대합실 → 승강장 → 노선도) ──
+     add·commit이 주제인 Commit 시나리오에서만 뜬다. 지하철 은유를 그대로 쓴다 —
+     승객이 개찰구를 지나 열차를 타야 역이 노선도에 찍힌다 */
+  .flow{display:flex;align-items:stretch;gap:6px;margin:0 2px 10px;padding:0}
+  .flow[hidden]{display:none}
+  .fz{
+    flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:6px;padding:9px 6px;border-radius:11px;
+    border:1.5px dashed var(--rule);background:var(--paper);
+    transition:border-color .3s, background .3s
+  }
+  .fzn{font-size:12.5px;font-weight:700;color:var(--ink-soft);white-space:nowrap;transition:color .3s}
+  /* 승객 한 명. 지금 어느 구역에 서 있는지가 이 점 하나로 읽힌다 */
+  .fdot{
+    width:15px;height:15px;border-radius:50%;background:var(--head);
+    opacity:0;transform:translateX(-14px);
+    transition:opacity .35s ease, transform .35s cubic-bezier(.32,.72,.28,1)
+  }
+  /* 노선도 칸은 승객이 아니라 역이 생기는 곳이다. 기호도 역(빈 원)으로 둔다 */
+  .fdot.station{background:#fff;border:3px solid var(--brand,#0B63C5);width:17px;height:17px}
+  .flow[data-at="work"]  .fz[data-z="work"]  .fdot,
+  .flow[data-at="stage"] .fz[data-z="stage"] .fdot,
+  .flow[data-at="repo"]  .fz[data-z="repo"]  .fdot{opacity:1;transform:none}
+  /* 지금 서 있는 칸만 진하게. 나머지는 점선으로 남아 "아직 안 갔다"를 보인다 */
+  .flow[data-at="work"]  .fz[data-z="work"],
+  .flow[data-at="stage"] .fz[data-z="stage"],
+  .flow[data-at="repo"]  .fz[data-z="repo"]{border-style:solid;border-color:var(--ink);background:var(--paper-2)}
+  .flow[data-at="work"]  .fz[data-z="work"]  .fzn,
+  .flow[data-at="stage"] .fz[data-z="stage"] .fzn,
+  .flow[data-at="repo"]  .fz[data-z="repo"]  .fzn{color:var(--ink)}
+  /* 칸 사이 화살표 = 그 구간을 건너게 하는 명령 */
+  .farr{
+    align-self:center;font-family:var(--mono);font-size:12.5px;font-weight:800;
+    color:var(--ink-soft);opacity:.5;white-space:nowrap;transition:opacity .3s, color .3s
+  }
+  .farr::after{content:" →"}
+  .flow[data-at="stage"] .farr[data-a="add"],
+  .flow[data-at="repo"]  .farr[data-a="commit"]{opacity:1;color:var(--head)}
+  @media (max-width:520px){
+    .fzn{font-size:11.5px}
+    .farr{font-size:11px}
+  }
   /* 구역 머리글은 가로 스크롤을 따라가면 안 되므로 SVG 밖에 얹는다 */
   .zone{
     position:absolute;left:12px;padding:1px 7px;border-radius:7px;
@@ -348,6 +391,15 @@
            Merge·Rebase에서 사라지고(여유 169·123px), 범례 줄 끝은 남는 자리가 창 폭에
            따라 0까지 줄어 잘렸다. 자기 줄을 줘야 폭이 보장된다 -->
       <div class="cmdbar" id="curCmd"></div>
+      <!-- 커밋이 두 단계라는 걸 보여주는 자리. add·commit이 주제인 Commit 시나리오에서만 뜬다.
+           자유 모드는 조작판의 "담긴 변경" 박스가 같은 일을 한다 -->
+      <div class="flow" id="flowBar" data-at="none" hidden>
+        <div class="fz" data-z="work"><span class="fzn">대합실</span><i class="fdot"></i></div>
+        <div class="farr" data-a="add">add</div>
+        <div class="fz" data-z="stage"><span class="fzn">승강장</span><i class="fdot"></i></div>
+        <div class="farr" data-a="commit">commit</div>
+        <div class="fz" data-z="repo"><span class="fzn">노선도</span><i class="fdot station"></i></div>
+      </div>
       <div class="map-scroll"><svg id="canvas" role="img" aria-label="Git 커밋 그래프"></svg></div>
       <div class="zone zone-local" id="zoneLocal" hidden>내 컴퓨터 (로컬)</div>
       <div class="zone zone-remote" id="zoneRemote" hidden>팀 공용 서버 (origin)</div>
@@ -636,6 +688,7 @@ function cmdCommit(msg, auto){
   log(`git commit -m "${msg}"`);
   say(`<b>${esc(S.head)}</b> 노선 끝에 역 <code>${id}</code> 이(가) 새로 생겼습니다. 담겼던 변경이 저장되고 HEAD도 함께 앞으로 이동합니다.`);
   render();
+  flowFly();          // 흐름 띠의 "노선도" 칸을 잠깐 밝힌다 (render 뒤라야 안 덮인다)
 }
 function cmdBranch(name){
   if(!name) return say("브랜치 이름을 입력하세요.");
@@ -905,6 +958,31 @@ function log(t, k){ S.log.push({t, k}); }
 function say(html){ $("note").innerHTML = html; }
 
 /* ───────── 그리기 ───────── */
+// 커밋 두 단계 흐름 띠. Commit 시나리오에서만 뜨고, 승객이 지금 어느 구역에 있는지 보인다.
+// 커밋 직후에는 "노선도" 칸을 잠깐 밝혀 역이 생기는 순간을 잇는다 — 그 사이 render()가
+// 상태를 덮지 않도록 flowHold로 붙잡는다
+let flowHold = false, flowTimer = null;
+function flowUpdate(){
+  const b = $("flowBar");
+  if(!b) return;
+  b.hidden = mode !== "commit";
+  if(b.hidden) return;
+  const want = S.staged ? "stage" : (($("msg").value || "").trim() ? "work" : "none");
+  // 커밋 직후에는 갈 곳이 "none"뿐이라 잠깐 노선도 칸을 붙잡는다. 다만 다음 동작이
+  // 오면(담았거나 새로 적었거나) 즉시 놓아준다 — 안 그러면 add를 눌러도 안 움직인다
+  if(flowHold && want === "none") return;
+  flowHold = false;
+  b.dataset.at = want;
+}
+function flowFly(){
+  const b = $("flowBar");
+  if(!b || b.hidden) return;
+  flowHold = true;
+  b.dataset.at = "repo";
+  clearTimeout(flowTimer);
+  flowTimer = setTimeout(()=>{ flowHold = false; flowUpdate(); }, 950);
+}
+
 // 구역 머리글 두 개의 세로 위치. render()와 따로 부를 수 있어야 한다 (위 zoneBandTop 주석 참고)
 function placeZones(){
   const zl = $("zoneLocal");
@@ -915,6 +993,9 @@ function placeZones(){
 }
 
 function render(){
+  // 흐름 띠는 노선도 위에 있어 뜨고 지는 것만으로 .map-scroll의 offsetTop을 바꾼다.
+  // placeZones()보다 먼저 확정해야 구역 머리글이 옛 자리에 남지 않는다
+  flowUpdate();
   const reach = new Set();
   Object.values(S.branches).forEach(b => ancestors(b.head).forEach(x=>reach.add(x)));
 
@@ -1293,17 +1374,19 @@ const SCEN = {
   commit: {
     title:"빈 폴더에서 첫 커밋까지",
     intro:"<b>아무것도 없는 빈 폴더</b>에서 시작합니다. <code>git init</code>으로 저장소를 만들고 <b>최초 커밋</b>을 찍은 뒤, <code>git commit</code>이 <b>담아 둔 것만</b> 저장한다는 것을 <b>거절당해 보며</b> 확인합니다. 아래 ‘다음 단계’를 눌러 한 줄씩 실행하세요.",
+    // add와 commit을 한 번도 묶지 않는다. 흐름 띠가 대합실 → 승강장 → 노선도로
+    // 한 칸씩 움직이는 것을 매번 보게 하는 게 이 시나리오의 요점이다
     steps:[
       { cmd:'git init', run:()=>cmdInit() },
       // 저장소가 생겨도 커밋이 없으면 그림도 비어 있다. 첫 역이 생겨야 이름표가 붙는다
-      { cmd:['git add .','git commit -m "최초 커밋"'],
-        run:()=>{ $("msg").value = "최초 커밋"; cmdCommit("최초 커밋", true); } },
+      { cmd:'git add .',                  run:()=>{ $("msg").value = "최초 커밋"; cmdAdd(); } },
+      { cmd:'git commit -m "최초 커밋"',    run:()=>cmdCommit("최초 커밋") },
       { cmd:'git commit -m "적 AI 추가"',
         run:()=>{ $("msg").value = "적 AI 추가"; cmdCommit("적 AI 추가"); } },   // 거절된다
-      { cmd:'git add .',                 run:()=>cmdAdd() },
-      { cmd:'git commit -m "적 AI 추가"', run:()=>cmdCommit("적 AI 추가") },
-      { cmd:['git add .','git commit -m "점프 물리"'],
-        run:()=>{ $("msg").value = "점프 물리"; cmdCommit("점프 물리", true); } }
+      { cmd:'git add .',                  run:()=>cmdAdd() },
+      { cmd:'git commit -m "적 AI 추가"',  run:()=>cmdCommit("적 AI 추가") },
+      { cmd:'git add .',                  run:()=>{ $("msg").value = "점프 물리"; cmdAdd(); } },
+      { cmd:'git commit -m "점프 물리"',   run:()=>cmdCommit("점프 물리") }
     ]
   },
   merge: {
@@ -1398,6 +1481,7 @@ function setMode(m){
   // 시나리오 버튼은 묶음(.group) 안에 있어 직계 자식만 훑으면 놓친다
   $("modes").querySelectorAll("[data-mode]").forEach(b=> b.setAttribute("aria-pressed", b.dataset.mode===m));
   seenNodes = new Set(); seenEdges = new Set(); prevPos = new Map();
+  flowHold = false;                                // 커밋 직후 연출이 모드를 넘어 남지 않게
   stepStack = [];                                  // drawSteps보다 먼저 비워야 "이전"이 꺼진 채로 시작한다
   // clone 시나리오만 "내 컴퓨터가 빈 채로 서버에만 저장소가 있는" 상태에서 출발하고,
   // commit 시나리오는 서버도 저장소도 없는 빈 폴더에서 출발한다.
@@ -1420,6 +1504,8 @@ function setMode(m){
 /* ───────── 연결 ───────── */
 $("btnAdd").onclick    = cmdAdd;
 $("btnCommit").onclick = ()=>cmdCommit($("msg").value.trim());
+// 적는 순간 "대합실"에 승객이 선다 — 아직 담기 전이라는 걸 보여 주는 자리
+$("msg").addEventListener("input", flowUpdate);
 $("btnBranch").onclick = ()=>cmdBranch($("bname").value.trim());
 $("btnSwitch").onclick = ()=>cmdSwitch($("selSwitch").value);
 $("btnMerge").onclick  = ()=>cmdMerge($("selMerge").value);
@@ -1813,8 +1899,11 @@ if(document.fonts && document.fonts.ready)
 
 // 범례가 접히는 줄 수가 바뀌면 노선도가 위아래로 움직인다. 그때마다 머리글을 다시 잡는다.
 // render() 안에서만 잡으면 폰트 적용·창 크기 변화의 리플로우를 한 프레임 놓친다
-if(window.ResizeObserver)
-  new ResizeObserver(placeZones).observe(document.querySelector(".legend"));
+// 노선도 위에 있는 것들. 크기가 변하면 그만큼 노선도가 밀린다 (범례 줄 수, 흐름 띠 유무)
+if(window.ResizeObserver){
+  const ro = new ResizeObserver(placeZones);
+  [".legend", "#flowBar"].forEach(s=>{ const el = document.querySelector(s); if(el) ro.observe(el); });
+}
 window.addEventListener("resize", placeZones);
 
 // #step=13 으로 열면 그 단계부터 재개한다 (쉬는 시간 뒤 이어보기)

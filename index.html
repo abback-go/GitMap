@@ -874,7 +874,12 @@ function cmdResolve(side){
   snap();
   S.conflict.side = side;
   S.staged = null; S.stagedFile = null;      // 고칠 때마다 다시 담아야 한다
-  log(`# ${S.conflict.file}에서 ${SIDE_TXT[side]} 남기기로 했습니다`, "n");
+  // 마음을 바꿔 다시 고르면 줄을 갈아 끼운다. 두 번 찍히면 무엇으로 정했는지 헷갈린다.
+  // 담은 뒤에 바꾼 경우는 사이에 add 줄이 끼므로 새 줄로 남는다 — 그건 기록이 맞다
+  const line = `# ${S.conflict.file}에서 ${SIDE_TXT[side]} 남기기로 했습니다`;
+  const last = S.log[S.log.length-1];
+  if(last && last.k === "n" && /남기기로 했습니다$/.test(last.t)) last.t = line;
+  else log(line, "n");
   say(`<code>${esc(S.conflict.file)}</code>에서 <b>${SIDE_TXT[side]}</b> 남기도록 고쳤습니다. 실제로는 편집기에서 <code>&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code> 표시를 지우고 남길 쪽을 정리하는 일입니다. <b>아직 저장소는 그대로입니다</b> — 작업 폴더의 파일만 손봤을 뿐이라 <code>add</code>로 담아야 "해결했다"가 됩니다.`);
   render();
 }

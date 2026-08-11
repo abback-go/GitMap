@@ -408,8 +408,10 @@
             <button class="act ghost" id="btnPROpen" style="flex:1" title="GitHub 웹에 합쳐 달라는 요청 글을 올립니다. 저장소는 그대로입니다">PR(열기)</button>
             <button class="act ghost" id="btnPR" style="flex:1" title="열린 PR을 승인해 서버에서 합칩니다 (GitHub의 Merge pull request)">PR(병합)</button>
           </div>
+          <!-- 둘 다 서버를 들여다보는 명령. branch -a는 목록만 보고 그림을 안 바꾼다 -->
           <div class="row" style="margin-bottom:6px">
             <button class="act ghost" id="btnFetch" style="flex:1" title="서버 소식만 받아옵니다. 내 브랜치는 안 움직입니다 (git fetch)">fetch</button>
+            <button class="act ghost" id="btnBranchList" style="flex:1" title="내 노선과 서버 노선 목록을 봅니다. 조회만 하므로 그림은 그대로입니다 (git branch -a)">branch -a</button>
           </div>
           <div class="row" style="margin-bottom:10px">
             <button class="act ghost" id="btnPull" style="flex:1" title="받아와서 합칩니다 (git pull = fetch + merge)">pull</button>
@@ -762,6 +764,8 @@ function cmdClone(){
 }
 // 상태를 바꾸지 않는 조회 명령. 서버에만 있는 노선을 눈으로 확인시킨다
 function cmdBranchList(){
+  // clone 전에는 내 저장소 자체가 없다. 막지 않으면 "내 노선은  뿐인데"로 주어가 빈다
+  if(!S.head) return say("아직 <b>내 저장소가 없습니다</b>. 실제 git도 <code>fatal: not a git repository</code>라며 <b>거절</b>합니다 — 먼저 <code>clone</code>부터 해야 합니다.");
   const local = Object.keys(S.branches).filter(n => !S.branches[n].remote);
   const only = remotes().filter(r => !local.includes(r.name.slice(RPFX.length)));
   snap();
@@ -1426,6 +1430,7 @@ $("btnTeam").onclick   = ()=>cmdTeamCommit(TEAM_MSGS[teamN++ % TEAM_MSGS.length]
 $("btnPROpen").onclick = ()=>cmdPROpen($("selPR").value);
 $("btnPR").onclick     = ()=>cmdPR($("selPR").value);
 $("btnFetch").onclick  = cmdFetch;
+$("btnBranchList").onclick = cmdBranchList;
 $("btnPull").onclick   = cmdPull;
 $("btnPush").onclick   = cmdPush;
 $("btnUndo").onclick   = cmdUndo;

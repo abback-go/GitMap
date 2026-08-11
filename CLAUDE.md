@@ -88,7 +88,7 @@ S = {
 | `cmdCommit(msg, auto)` | 담긴 게 없으면 **거절**. `auto=true`면 담기까지 한 번에 (시나리오·자동 안내용) |
 | `cmdBranch(name)` / `cmdSwitch(name)` | 브랜치 생성(+이동) · 이동. `cmdSwitch`는 **로컬에 없고 원격에만 있는 이름**이면 추적 브랜치를 만들며 이동한다 |
 | `cmdClone()` | 원격 전체를 로컬로 복사 + 기본 브랜치 생성. `S.head`가 비어 있을 때만 동작 |
-| `cmdBranchList()` | `git branch -a`. 상태를 바꾸지 않고 서버에만 있는 노선을 알린다 |
+| `cmdBranchList()` | `git branch -a`. 상태를 바꾸지 않고 서버에만 있는 노선을 알린다. 저장소가 없으면(`S.head`가 빔) 거절한다 |
 | `cmdRemoteAdd()` | `S.origin`에 주소만 등록한다. **원격 브랜치는 안 만든다** — 서버 구역이 빈 채로 열린다 |
 | `cmdMerge(name)` / `cmdRebase(name)` | 병합 · 재배치 |
 | `cmdTeamCommit(msg)` | 팀원이 `origin/main`에 커밋 (내 브랜치도 `known`도 안 움직임) |

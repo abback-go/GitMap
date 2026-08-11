@@ -766,7 +766,9 @@ function cmdCommit(msg, auto){
   if(!S.staged){
     if(!auto){
       const typed = ($("msg").value || "").trim();
-      if(typed) log(`git commit -m "${typed}"   # nothing added`, "e");
+      // 로그를 바꾸면 되돌릴 거리가 생긴 것이다 — 거절도 snap()을 부른다.
+      // 안 부르면 되돌리기 한 번에 거절 줄과 그 앞의 실제 커밋이 함께 사라진다
+      if(typed){ snap(); log(`git commit -m "${typed}"   # nothing added`, "e"); }
       say(`담긴 변경이 없어 커밋할 게 없습니다. 먼저 <b>add</b>를 누르세요. 실제 git도 <code>no changes added to commit</code>이라고 답합니다.`);
       render();          // 거절 줄도 로그에 바로 보여야 한다 (cmdPush·cmdSwitch의 거절과 같은 처리)
       return;
@@ -807,6 +809,7 @@ function cmdSwitch(name){
     const r = remoteOf(name);
     // 서버에도 없는 이름이면 만들어 주지 않는다. 실제 git도 거절한다
     if(!r){
+      snap();          // 거절 줄도 되돌리기 한 칸을 차지한다 (cmdCommit·cmdPush와 같은 규칙)
       log(`git switch ${name}   # invalid reference`, "e");
       say(`<b>${esc(name)}</b>은(는) 내 컴퓨터에도 서버에도 없습니다. 실제 git도 <code>fatal: invalid reference</code>라며 <b>거절</b>합니다 — <code>git switch</code>는 <b>브랜치를 만드는 명령이 아닙니다</b>. 새로 만들려면 <b>switch -c</b> 버튼을 쓰세요.`);
       render(); return;
@@ -1084,8 +1087,9 @@ function cmdPush(){
     say(`<b>${esc(c.name)}</b> 노선이 서버에 <b>처음</b> 올라갔습니다. 서버 띠에 <code>${esc(RPFX + c.name)}</code> 이름표가 새로 생겼습니다 — 이제 팀원도 이 노선을 받아갈 수 있습니다.`);
     render(); return;
   }
-  if(r.head === c.head) { log(`git push`); say("원격과 같은 위치라 올릴 것이 없습니다."); return; }
+  if(r.head === c.head) { snap(); log(`git push`); say("원격과 같은 위치라 올릴 것이 없습니다."); render(); return; }
   if(!isAncestor(r.head, c.head)){
+    snap();          // 거절 줄도 되돌리기 한 칸을 차지한다 (cmdCommit·cmdSwitch와 같은 규칙)
     log(`git push   # rejected (non-fast-forward)`, "e");
     say(`원격에 <b>내가 모르는 커밋</b>이 있어서 거절됩니다. 먼저 <b>pull</b>로 합친 뒤 다시 올리세요.`);
     render(); return;
@@ -1750,7 +1754,9 @@ $("btnPrev").onclick   = ()=>{
   drawSteps(); render();
 };
 $("btnRestart").onclick= ()=>setMode(mode);
-$("modes").onclick = e=>{ if(e.target.dataset.mode) setMode(e.target.dataset.mode); };
+// 버튼 안의 번호 <i>가 클릭 대상이 되면 e.target에는 data-mode가 없다.
+// closest로 버튼까지 올라가야 번호를 눌러도 모드가 바뀐다
+$("modes").onclick = e=>{ const b = e.target.closest("[data-mode]"); if(b) setMode(b.dataset.mode); };
 $("msg").onkeydown = e=>{ if(e.key==="Enter") $("btnAdd").click(); };
 $("bname").onkeydown = e=>{ if(e.key==="Enter") $("btnBranch").click(); };
 

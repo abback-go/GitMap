@@ -64,8 +64,11 @@ S = {
   origin:  null,             // 등록된 원격 주소(.git/config). 서버에 무엇이 올라가 있는지와 다른 축이다
   staged:  null,             // git add로 담긴 변경 설명. 커밋하면 비워진다
   laneNext: 0,
-  log:     [{ t, k }]        // k: 없으면 명령, "e" 거절/오류, "n" 명령 아닌 설명,
-                             //    "o" 명령이 뿌린 출력 ($·# 없는 흐린 줄)
+  stagedFile: null,          // 담긴 변경이 건드린 파일 (충돌 판정용)
+  conflict: null,            // 멈춘 병합 { name, file, side }. side는 고른 쪽(ours/theirs/both)
+  log:     [{ t, k }]        // k: 없으면 명령, "e" 거절/오류($ 붙음), "n" 명령 아닌 설명,
+                             //    "o" 명령이 뿌린 출력 ($·# 없는 흐린 줄),
+                             //    "x" git이 뱉은 붉은 줄 (CONFLICT — $를 붙이면 명령으로 오해한다)
 }
 ```
 
@@ -90,7 +93,9 @@ S = {
 | `cmdClone()` | 원격 전체를 로컬로 복사 + 기본 브랜치 생성. `S.head`가 비어 있을 때만 동작 |
 | `cmdBranchList()` | `git branch -a`. 상태를 바꾸지 않고 서버에만 있는 노선을 알린다. 저장소가 없으면(`S.head`가 빔) 거절한다 |
 | `cmdRemoteAdd()` | `S.origin`에 주소만 등록한다. **원격 브랜치는 안 만든다** — 서버 구역이 빈 채로 열린다 |
-| `cmdMerge(name)` / `cmdRebase(name)` | 병합 · 재배치 |
+| `cmdMerge(name)` / `cmdRebase(name)` | 병합 · 재배치. merge는 **양쪽이 같은 `file`을 고쳤으면 멈춘다**(충돌) |
+| `cmdResolve(side)` | 충돌 파일을 고친다(`"ours"`/`"theirs"`/`"both"`). **저장소는 아직 안 바뀐다** |
+| `finishMerge()` | 멈춘 병합을 끝내 환승역을 만든다. `cmdCommit`이 충돌 중이면 이리로 보낸다 |
 | `cmdTeamCommit(msg)` | 팀원이 `origin/main`에 커밋 (내 브랜치도 `known`도 안 움직임) |
 | `cmdPROpen(name)` | PR 열기. **상태를 안 바꾼다** — 로그·설명만 남긴다. 자유 모드 버튼은 `PR(열기)` |
 | `cmdPR()` | 서버에서 `origin/<기능>`을 `origin/main`에 병합. 로컬은 안 움직인다 |
@@ -103,6 +108,10 @@ S = {
 - **거절 경로가 조용하다.** 가드에 걸리면 아무 반환값 없이 `#note`에만 문구를 쓴다 (`remoteGuard`, `cmdPush`의 non-fast-forward 등). 스크린샷 찍기 전에 `#note` 텍스트와 `S.log` 마지막 줄을 확인해야 "실행됐다고 착각한 상태"를 안 찍는다
 - `setMode`는 `clone`이면 `freshClone()`, `commit`이면 `freshEmpty()`, 아니면 `fresh(m === "free" || m === "pr")`를 부른다. 즉 **원격을 갖고 시작하는 모드는 자유 모드와 pr·clone**이고, `push`는 **원격 없이 시작해 `git remote add`부터 직접 한다**. `remoteGuard`는 `S.branches[REMOTE]`가 아니라 **`S.origin`**을 본다 — 주소만 등록하고 아직 아무것도 안 올린 중간 상태가 있기 때문
 - **`S.head`가 빈 채로 시작하는 모드가 둘이다** — `clone`(서버에만 저장소가 있다)과 `commit`(저장소 자체가 없고 커밋도 0개다). `cur()`가 `undefined`가 되므로 `render()`나 새 명령에서 `cur()`를 쓸 때 반드시 방어할 것 (`cur().head`에서 터졌던 자리다). 로그 머리말(`git init` 묶음)은 `clone`·`commit`·`push` 세 모드에서 숨긴다 — 그 줄들을 시나리오가 직접 실행하므로 위아래로 겹친다
+- **충돌은 파일 *이름*만으로 판정한다.** 커밋의 `file` 한 칸이 전부고 내용은 없다 — 필요한 건 "갈라진 뒤 양쪽이 같은 파일을 고쳤나"뿐이다(`touchedSince`). 파일을 안 적은 커밋(`file` 없음)끼리는 절대 충돌하지 않으므로 **기존 시나리오는 그대로 동작한다**
+  - **충돌 중에는 `switch`·`branch`·`merge`·`rebase`·`push`·`pull`이 막힌다**(`conflictGuard`). 실제 git도 `you need to resolve your current index first`라며 거절한다
+  - 순서는 **고르기 → `add` → `commit`** 셋이다. 하나라도 건너뛰면 거절하고, `#cfxStep`이 ①②③으로 지금 어디인지 알려 준다
+  - **`#cfxBox`는 `#freePanel` 밖에 둔다.** 안에 두면 시나리오 모드에서 `display:none`에 걸려 버튼 폭이 0이 된다 — `stagedBox`가 27차에 똑같이 당한 자리다
 - **흐름 띠(`#flowBar`)는 `add`·`commit`을 직접 다루는 곳에서만 뜬다 — Commit 시나리오와 자유 모드.** `merge`·`rebase`·`push`·`pr`·`clone`은 브랜치와 원격이 주제라 화면을 차지할 이유가 없다. 대합실 → 승강장 → 노선도 3칸으로 `add`·`commit`이 두 단계임을 보인다. 상태는 `flowUpdate()`가 정하고(`S.staged`면 승강장, 입력칸에 글이 있으면 대합실), 커밋 직후에는 `flowFly()`가 `flowHold`로 950ms 동안 노선도 칸을 붙잡는다 — **다음 동작이 오면 즉시 놓아준다.** 안 그러면 `add`를 눌러도 안 움직인다
   - **`flowUpdate()`는 `render()` 맨 앞에서 불러야 한다.** 띠가 뜨고 지는 것만으로 `.map-scroll`의 `offsetTop`이 101px 움직이는데, `placeZones()`보다 늦게 부르면 구역 머리글이 옛 자리에 남는다(62px 겹쳤다). 같은 이유로 **`ResizeObserver` 대상에 `#flowBar`가 들어 있다** — 노선도 위에 얹히는 것을 새로 추가하면 여기에도 넣을 것
   - **Commit 시나리오는 `add`와 `commit`을 절대 묶지 않는다**(8단계). 띠가 한 칸씩 움직이는 걸 매번 보게 하는 게 요점이다. 거절 단계(4단계)에서 띠가 **대합실에 머무는 것**이 "적기만 하고 담지 않았다"를 그대로 보여 준다

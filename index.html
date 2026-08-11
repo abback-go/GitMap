@@ -243,6 +243,25 @@
     border:1.5px dashed #7FB069;border-radius:9px;background:#F3F8F0;font-size:15.5px
   }
   .staged[hidden]{display:none}     /* .staged의 display:flex가 [hidden] 기본값을 덮는다 */
+  /* 충돌 해결 자리. 담긴 변경(초록)과 달리 빨강 계열로 "멈춰 있다"를 알린다 */
+  .cfx{
+    margin:0 0 8px;padding:9px 10px;border-radius:9px;
+    border:1.5px solid #F3C2C7;background:#FCEBEC
+  }
+  .cfx[hidden]{display:none}
+  .cfx .k{
+    font-size:13px;font-weight:800;color:#B02A37;margin-bottom:7px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+  }
+  .cfx .k span{font-family:var(--mono);font-weight:700}
+  .cfx .act{border-color:#E4A9B0;color:#8E1F2C}
+  .cfx .act:hover{border-color:#B02A37}
+  /* 고른 쪽은 눌린 채로 남는다 — 무엇을 골랐는지 잊지 않게 */
+  .cfx .act[aria-pressed="true"]{background:#B02A37;border-color:#B02A37;color:#fff}
+  /* 다음에 칠 명령. 충돌은 고르기 → add → commit 순서를 지켜야 끝난다 */
+  .cfxstep{margin-top:8px;font-size:13.5px;color:#8E1F2C}
+  .cfxstep code{font-family:var(--mono);font-weight:700;background:#fff;padding:1px 6px;border-radius:4px}
+  .cfxstep b{font-weight:800}
   .staged .k{font-size:13px;font-weight:800;letter-spacing:.06em;color:#4A7A38;white-space:nowrap}
   .staged span:last-child{color:var(--ink);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
@@ -257,6 +276,8 @@
   .log .n{color:var(--ink-soft)}
   /* 명령이 터미널에 뿌린 출력. $도 #도 아니라 옮겨 칠 대상이 아니다 */
   .log .o{color:var(--ink-soft);opacity:.8}
+  /* 붉은 출력. CONFLICT처럼 "git이 뱉은 경고"라 $를 붙이면 명령으로 오해한다 */
+  .log .x{color:#B02A37;font-weight:700}
   .log .empty{color:var(--ink-soft);font-family:inherit}
   /* 저장소를 만들 때 한 번만 치는 명령. 아래 기록과 섞이지 않게 구분하되 읽히긴 해야 한다 —
      옮겨 적어야 하는 줄인데 #8A96A4는 이 배경에서 대비 2.63으로 기준(4.5) 미달이었다.
@@ -365,6 +386,7 @@
         <span class="lbl">시나리오</span>
         <button data-mode="commit" aria-pressed="false">Commit</button>
         <button data-mode="merge" aria-pressed="false">Merge</button>
+        <button data-mode="conflict" aria-pressed="false">Conflict</button>
         <button data-mode="push" aria-pressed="false">Push</button>
         <button data-mode="pr" aria-pressed="false">PR</button>
         <button data-mode="clone" aria-pressed="false">Clone</button>
@@ -412,6 +434,20 @@
       </div>
 
       <div class="note" id="note">브랜치를 만들고 커밋해보세요.</div>
+
+      <!-- 병합이 멈춘 동안에만 나타난다. 고르는 것은 "파일을 고치는" 일이고,
+           그 뒤 add·commit을 해야 병합이 끝난다.
+           #freePanel 밖에 두어야 시나리오 모드에서도 보인다 (stagedBox가 안 보였던 그 자리) -->
+      <div class="cfx" id="cfxBox" role="status" aria-live="polite" hidden>
+        <div class="k">충돌 · <span id="cfxFile"></span></div>
+        <div class="row">
+          <button class="act ghost" id="btnOurs"   style="flex:1" title="내 브랜치 쪽 내용을 남깁니다">내 것</button>
+          <button class="act ghost" id="btnTheirs" style="flex:1" title="합쳐 오는 브랜치 쪽 내용을 남깁니다">상대 것</button>
+          <button class="act ghost" id="btnBoth"   style="flex:1" title="양쪽 내용을 모두 남깁니다">둘 다</button>
+        </div>
+        <!-- 다음에 무엇을 해야 하는지. 충돌은 순서를 지켜야 끝난다 -->
+        <div class="cfxstep" id="cfxStep"></div>
+      </div>
 
       <!-- 넓은 창에서는 두 묶음이 나란히 선다. 한 줄씩 쌓으면 조작판만 862px가 되어
            아래 로그가 화면 밖으로 밀렸다 (1600×1000에서 문서 높이 1023px) -->
@@ -561,7 +597,8 @@ function textW(s, weight){
 // S.origin은 "원격 주소를 등록해 뒀는가"(.git/config)다. 서버에 무엇이 올라가 있는지와 다른 이야기라
 // origin/main 이름표와 따로 둔다 — git remote add는 주소만 적고 아무것도 주고받지 않는다
 function fresh(withRemote){
-  S = { commits:{}, order:[], branches:{}, head:"main", laneNext:0, log:[], staged:null, origin:null };
+  S = { commits:{}, order:[], branches:{}, head:"main", laneNext:0, log:[],
+        staged:null, stagedFile:null, conflict:null, origin:null };
   makeBranch("main");
   doCommit("최초 커밋");
   // 원격은 같은 역에서 출발한다. lane 번호를 새로 쓰지 않아 로컬 브랜치 색이 밀리지 않는다
@@ -579,7 +616,8 @@ function fresh(withRemote){
 // head가 빈 문자열이면 "아직 내 저장소가 없다"는 뜻이다 (clone 전)
 function freshClone(){
   // clone은 주소를 받아 통째로 복사하는 명령이라 origin 등록도 clone이 대신 해 준다
-  S = { commits:{}, order:[], branches:{}, head:"", laneNext:0, log:[], staged:null, origin:ORIGIN_URL };
+  S = { commits:{}, order:[], branches:{}, head:"", laneNext:0, log:[],
+        staged:null, stagedFile:null, conflict:null, origin:ORIGIN_URL };
   const mkRemote = (name, base) => {
     const r = { name:RPFX + name, head:base, known:base,
                 lane:S.laneNext, color:COLORS[S.laneNext % COLORS.length], remote:true };
@@ -605,7 +643,8 @@ function freshClone(){
 }
 // 아무것도 없는 빈 폴더. git init 전이라 브랜치도 커밋도 없다 (commit 시나리오의 출발점)
 function freshEmpty(){
-  S = { commits:{}, order:[], branches:{}, head:"", laneNext:0, log:[], staged:null, origin:null };
+  S = { commits:{}, order:[], branches:{}, head:"", laneNext:0, log:[],
+        staged:null, stagedFile:null, conflict:null, origin:null };
   undoStack = [];
 }
 function hash(){
@@ -633,7 +672,9 @@ function ancestors(id){
 const isAncestor = (a,b) => !!a && ancestors(b).has(a);
 
 /* ───────── 명령 ───────── */
-function doCommit(msg){
+// file은 "이 커밋이 건드린 파일". 내용은 다루지 않고 이름만 갖는다 —
+// 충돌 판정에 필요한 건 "같은 파일을 양쪽이 고쳤나" 하나뿐이다 (Conflict 시나리오)
+function doCommit(msg, file){
   const b = cur();
   // 지금 서 있는 역에서 같은 줄로 이미 선로가 뻗어 있으면(원격이 앞서 나간 경우 등)
   // 새 줄로 갈라진다. 색은 유지해서 같은 노선임을 보여준다
@@ -641,12 +682,24 @@ function doCommit(msg){
     b.lane = S.laneNext++;
   const id = hash();
   S.commits[id] = { id, parents: b.head?[b.head]:[], lane:b.lane, msg, color:b.color };
+  if(file) S.commits[id].file = file;
   S.order.push(id);
   b.head = id;
   return id;
 }
+// 공통 조상 이후 이 브랜치 쪽에서만 건드린 파일들. 양쪽 집합이 겹치면 충돌이다
+function touchedSince(head, baseSet){
+  const out = new Set();
+  ancestors(head).forEach(id=>{
+    if(baseSet.has(id)) return;                  // 갈라지기 전 기록은 양쪽 공통이라 뺀다
+    const f = S.commits[id].file;
+    if(f) out.add(f);
+  });
+  return out;
+}
 // git add — 바꾼 것을 "담는" 단계. 담기지 않은 건 커밋되지 않는다
-function doStage(msg){ S.staged = msg; log(`git add .`); }
+// file은 Conflict 시나리오에서만 쓰인다 (어느 파일을 건드렸는지)
+function doStage(msg, file){ S.staged = msg; S.stagedFile = file || null; log(`git add .`); }
 // git init — 빈 폴더를 저장소로 만든다. 브랜치 이름만 정해지고 역은 하나도 생기지 않는다
 function cmdInit(){
   if(S.head) return say("이미 내 컴퓨터에 저장소가 있습니다.");
@@ -657,12 +710,26 @@ function cmdInit(){
   say(`빈 폴더가 <b>저장소</b>가 되었습니다. 그런데 <b>노선도는 아직 비어 있습니다</b> — <code>main</code>이라는 <b>이름만 정해졌을 뿐</b> 역이 하나도 없어서 이름표를 붙일 곳도 없습니다. 브랜치는 <b>역을 가리키는 이름표</b>라서, 가리킬 역이 없으면 그림에도 나타나지 않습니다.`);
   render();
 }
-function cmdAdd(){
+function cmdAdd(file){
+  // 충돌을 고친 뒤의 add는 성격이 다르다 — 새 변경을 담는 게 아니라 "해결했다"는 표시다
+  if(S.conflict){
+    if(!S.conflict.side)
+      return say(`아직 <code>${esc(S.conflict.file)}</code>을(를) 고치지 않았습니다. <b>어느 쪽을 남길지</b> 먼저 고르세요.`);
+    if(S.staged) return say(`이미 담겨 있습니다. <b>commit</b>으로 병합을 끝내세요.`);
+    snap();
+    // 여기서는 파일 하나를 콕 집어 담는다. doStage의 "git add ."과 로그가 달라야
+    // 진행 순서(git add style.css)와 줄이 맞는다
+    S.staged = `${S.conflict.file} 충돌 해결`;
+    S.stagedFile = S.conflict.file;
+    log(`git add ${S.conflict.file}`);
+    say(`고친 <code>${esc(S.conflict.file)}</code>을(를) 담았습니다. 실제 git에서도 <b>충돌을 고친 파일을 <code>add</code>하는 것이 "해결했다"는 표시</b>입니다. 이제 <b>commit</b>을 누르면 환승역이 생기며 병합이 끝납니다.`);
+    return render();
+  }
   const msg = ($("msg").value || "").trim();
   if(S.staged) return say(`이미 <b>${esc(S.staged)}</b> 이(가) 담겨 있습니다. <b>커밋</b>으로 저장하세요.`);
   if(!msg) return say("담을 변경이 없습니다. 무엇을 했는지 먼저 적으세요.");
   snap();
-  doStage(msg);
+  doStage(msg, file);
   $("msg").value = "";
   say(`<b>${esc(msg)}</b> 을(를) 담았습니다. 아직 저장된 건 아닙니다 — <b>커밋</b>을 눌러야 역이 생깁니다.`);
   render();
@@ -671,6 +738,8 @@ function cmdAdd(){
 function cmdCommit(msg, auto){
   // 저장소가 없으면 담을 곳도 커밋할 곳도 없다 (git init / clone 전)
   if(!S.head) return say("아직 저장소가 없습니다. 먼저 <code>git init</code>으로 저장소를 만드세요.");
+  // 멈춰 있던 병합을 끝내는 커밋. 부모가 둘인 환승역이 여기서 만들어진다
+  if(S.conflict) return finishMerge();
   if(!S.staged){
     if(!auto){
       const typed = ($("msg").value || "").trim();
@@ -683,14 +752,16 @@ function cmdCommit(msg, auto){
     doStage((msg || "").trim() || "작업 내용 저장");
   } else snap();
   msg = S.staged;
-  S.staged = null;
-  const id = doCommit(msg);
+  const f = S.stagedFile;
+  S.staged = null; S.stagedFile = null;
+  const id = doCommit(msg, f);
   log(`git commit -m "${msg}"`);
   say(`<b>${esc(S.head)}</b> 노선 끝에 역 <code>${id}</code> 이(가) 새로 생겼습니다. 담겼던 변경이 저장되고 HEAD도 함께 앞으로 이동합니다.`);
   render();
   flowFly();          // 흐름 띠의 "노선도" 칸을 잠깐 밝힌다 (render 뒤라야 안 덮인다)
 }
 function cmdBranch(name){
+  if(!conflictGuard()) return;
   if(!name) return say("브랜치 이름을 입력하세요.");
   if(/[\s~^:?*\[\\]/.test(name) || name.includes("..") || /^[-\/.]|[\/.]$/.test(name))
     return say("브랜치 이름에 공백이나 <code>~ ^ : ? * [ \\ ..</code> 는 쓸 수 없습니다. 실제 git도 거절합니다.");
@@ -705,6 +776,7 @@ function cmdBranch(name){
   render();
 }
 function cmdSwitch(name){
+  if(!conflictGuard()) return;
   if(name===S.head) return say(`이미 <b>${esc(name)}</b> 노선에 있습니다.`);
   // 내 컴퓨터엔 없고 서버에만 있는 노선. git이 원격을 따라가는 로컬 노선을 알아서 만들어 준다
   // (clone 직후 origin/develop은 보이는데 develop이 없어 당황하는 지점)
@@ -731,7 +803,15 @@ function cmdSwitch(name){
   say(`HEAD가 <b>${esc(name)}</b> 노선으로 옮겨졌습니다. 이제 커밋하면 이 노선 끝에 붙습니다.`);
   render();
 }
+// 병합이 멈춘 동안에는 딴 길로 못 간다. 실제 git도 switch·merge·rebase를 거절한다
+function conflictGuard(){
+  if(!S.conflict) return true;
+  say(`<b>병합이 멈춰 있습니다.</b> <code>${esc(S.conflict.file)}</code>의 충돌을 먼저 끝내야 다른 일을 할 수 있습니다 — 실제 git도 <code>you need to resolve your current index first</code>라며 <b>거절</b>합니다.`);
+  render();
+  return false;
+}
 function cmdMerge(name){
+  if(!conflictGuard()) return;
   const t = S.branches[name], c = cur();
   if(!t || name===S.head) return say("현재 브랜치와 다른 브랜치를 골라주세요.");
   if(!t.head) return say(`<b>${esc(name)}</b>에는 커밋이 없습니다.`);
@@ -742,15 +822,58 @@ function cmdMerge(name){
     log(`git merge ${name}   # fast-forward`);
     say(`<b>${esc(S.head)}</b>가 갈라진 뒤 한 번도 커밋하지 않았기 때문에, 새 역을 만들지 않고 <b>${esc(name)}</b> 끝까지 그냥 미끄러져 갑니다. 이걸 <code>fast-forward</code>라고 합니다.`);
   } else {
+    // 갈라진 뒤 양쪽이 같은 파일을 고쳤으면 git이 스스로 정하지 못한다 — 병합이 멈춘다
+    const base = new Set([...ancestors(c.head)].filter(id => ancestors(t.head).has(id)));
+    const both = [...touchedSince(c.head, base)].filter(f => touchedSince(t.head, base).has(f));
+    if(both.length){
+      S.conflict = { name, file:both[0], side:null };
+      log(`git merge ${name}`);
+      log(`CONFLICT (content): Merge conflict in ${both[0]}`, "x");   // git이 뱉은 줄이라 $를 안 붙인다
+      log(`Automatic merge failed; fix conflicts and then commit the result.`, "o");
+      say(`<p><b>병합이 멈췄습니다.</b> 갈라진 뒤 양쪽이 <b>같은 파일</b> <code>${esc(both[0])}</code>을(를) 고쳤기 때문입니다 — 어느 쪽이 맞는지는 <b>git이 정할 수 없습니다</b>.</p>`
+        + `<p><b>환승역은 아직 없습니다.</b> 노선도를 보세요. 두 노선이 만나려다 멈춰 선 자리가 <b>빨간 점선</b>으로 표시됩니다.</p>`
+        + `<p>고장이 아니라 <b>물어보는 것</b>입니다. 어느 쪽을 남길지 고른 뒤 <code>add</code> · <code>commit</code>하면 그때 환승역이 생깁니다.`);
+      render();
+      return;
+    }
     const id = hash();
     S.commits[id] = { id, parents:[c.head, t.head], lane:c.lane, msg:`Merge ${name}`, color:c.color, merge:true };
     S.order.push(id); c.head = id;
     log(`git merge ${name}`);
-    say(`양쪽 모두 새 역이 있어서 <b>환승역</b> <code>${id}</code> 이(가) 만들어졌습니다. 부모가 둘인 유일한 커밋이며, 갈라졌던 기록이 그대로 남습니다.`);
+    say(`양쪽 모두 새 역이 있어서 <b>환승역</b> <code>${id}</code> 이(가) 만들어졌습니다. 부모가 둘인 유일한 커밋이며, 갈라졌던 기록이 그대로 남습니다. <b>서로 다른 파일을 고쳤기에</b> git이 알아서 합칠 수 있었습니다.`);
   }
   render();
 }
+// 충돌한 파일을 고친다. 저장소는 아직 안 바뀐다 — 작업 폴더의 파일만 손본 상태다
+const SIDE_TXT = { ours:"내 것", theirs:"상대 것", both:"둘 다" };
+function cmdResolve(side){
+  if(!S.conflict) return say("지금은 충돌이 없습니다.");
+  snap();
+  S.conflict.side = side;
+  S.staged = null; S.stagedFile = null;      // 고칠 때마다 다시 담아야 한다
+  log(`# ${S.conflict.file}에서 ${SIDE_TXT[side]} 남기기로 했습니다`, "n");
+  say(`<code>${esc(S.conflict.file)}</code>에서 <b>${SIDE_TXT[side]}</b> 남기도록 고쳤습니다. 실제로는 편집기에서 <code>&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code> 표시를 지우고 남길 쪽을 정리하는 일입니다. <b>아직 저장소는 그대로입니다</b> — 작업 폴더의 파일만 손봤을 뿐이라 <code>add</code>로 담아야 "해결했다"가 됩니다.`);
+  render();
+}
+// 멈춰 있던 병합을 끝낸다. 여기서야 환승역이 생긴다
+function finishMerge(){
+  const c = cur(), t = S.branches[S.conflict.name];
+  if(!S.conflict.side) return say(`아직 <code>${esc(S.conflict.file)}</code>을(를) 고치지 않았습니다. <b>어느 쪽을 남길지</b> 먼저 고르세요.`);
+  if(!S.staged) return say(`고치기는 했지만 아직 담지 않았습니다. <b>add</b>로 담아야 git이 "해결됐다"고 봅니다.`);
+  snap();
+  const id = hash();
+  S.commits[id] = { id, parents:[c.head, t.head], lane:c.lane, msg:`Merge ${S.conflict.name}`,
+                    color:c.color, merge:true, file:S.conflict.file };
+  S.order.push(id); c.head = id;
+  const side = S.conflict.side, file = S.conflict.file;
+  S.conflict = null; S.staged = null; S.stagedFile = null;
+  log(`git commit   # 충돌 해결`);
+  say(`<b>환승역</b> <code>${id}</code> 이(가) 생기며 병합이 끝났습니다. <code>${esc(file)}</code>에는 <b>${SIDE_TXT[side]}</b> 남았습니다. 충돌이 났어도 <b>결과는 보통의 병합과 같습니다</b> — 부모가 둘인 환승역 하나입니다.`);
+  render();
+  flowFly();
+}
 function cmdRebase(name){
+  if(!conflictGuard()) return;
   const t = S.branches[name], c = cur();
   if(!t || name===S.head) return say("현재 브랜치와 다른 브랜치를 골라주세요.");
   if(!t.head) return say(`<b>${esc(name)}</b>에는 커밋이 없습니다.`);
@@ -901,7 +1024,7 @@ function cmdPR(name){
   render();
 }
 function cmdPull(){
-  if(!remoteGuard()) return;
+  if(!conflictGuard() || !remoteGuard()) return;
   const c = cur(), r = remoteOf(c.name);
   if(!r){ say(`<b>${esc(c.name)}</b>는 아직 서버에 없습니다. 먼저 <b>push</b>로 올려 두세요.`); return; }
   if(r.head === c.head) { r.known = r.head; log(`git pull`); say("이미 원격과 같은 위치입니다. (Already up to date)"); render(); return; }
@@ -922,7 +1045,7 @@ function cmdPull(){
   render();
 }
 function cmdPush(){
-  if(!remoteGuard()) return;
+  if(!conflictGuard() || !remoteGuard()) return;
   const c = cur(), r = remoteOf(c.name);
   // 서버에 아직 없는 브랜치는 이번 push로 처음 생긴다 (git push -u)
   if(!r){
@@ -1215,6 +1338,25 @@ function render(){
     });
   });
 
+  // 멈춰 선 병합. 두 head 사이를 빨간 점선으로 이어 "여기서 만나려다 막혔다"를 보인다.
+  // 환승역은 아직 없으므로 선만 그린다 — 충돌을 끝내야 진짜 역이 생긴다
+  if(S.conflict && cur() && S.branches[S.conflict.name]){
+    const a = pos[cur().head], b = pos[S.branches[S.conflict.name].head];
+    if(a && b){
+      svg.appendChild(el("path",{ d:`M ${a.x} ${a.y} L ${b.x} ${b.y}`,
+        fill:"none", stroke:"#D92D3F", "stroke-width":4, "stroke-dasharray":"3 7",
+        "stroke-linecap":"round", opacity:.75 }));
+      // 중점에 두면 아래 역의 메시지(원 위 49px)를 덮는다. 위 역 쪽으로 당겨 빈 구간에 놓는다
+      const mx = a.x + (b.x-a.x)*0.3, my = a.y + (b.y-a.y)*0.3;
+      svg.appendChild(el("rect",{ x:mx-38, y:my-13, width:76, height:26, rx:13,
+        fill:"#FCEBEC", stroke:"#D92D3F", "stroke-width":1.5 }));
+      const t = el("text",{ x:mx, y:my+5, "text-anchor":"middle","font-size":13,
+        "font-weight":800, fill:"#B02A37" });
+      t.textContent = "충돌";
+      svg.appendChild(t);
+    }
+  }
+
   // 역
   S.order.forEach(id=>{
     const c = S.commits[id], p = pos[id], live = reach.has(id), soft = live && unfetched(id);
@@ -1317,6 +1459,19 @@ function render(){
   $("nowBranch").textContent = S.head || "아직 없음";
   $("stagedBox").hidden = !S.staged;
   if(S.staged) $("stagedTxt").textContent = S.staged;
+  // 충돌 해결 자리. 고른 쪽은 눌린 상태로 남겨 무엇을 골랐는지 보이게 한다
+  $("cfxBox").hidden = !S.conflict;
+  if(S.conflict){
+    $("cfxFile").textContent = S.conflict.file;
+    [["btnOurs","ours"],["btnTheirs","theirs"],["btnBoth","both"]].forEach(([id,side])=>
+      $(id).setAttribute("aria-pressed", S.conflict.side === side));
+    // 세 단계 중 어디까지 왔는지. 순서를 지켜야 병합이 끝난다
+    $("cfxStep").innerHTML = !S.conflict.side
+      ? "① 어느 쪽을 남길지 <b>고르세요</b>"
+      : (!S.staged
+          ? `② 고쳤으면 <code>add ${esc(S.conflict.file)}</code>로 <b>담으세요</b>`
+          : "③ <code>commit</code>으로 <b>병합을 끝내세요</b>");
+  }
   // 커밋 버튼은 일부러 막지 않는다 — 담지 않고 눌러 거절당해 보는 게 이 모델의 핵심이다
   ["selSwitch","selMerge","selRebase"].forEach(k=>{
     const s = $(k), keep = s.value;
@@ -1401,6 +1556,24 @@ const SCEN = {
       { cmd:'git switch main', run:()=>cmdSwitch("main") },
       { cmd:['git add .','git commit -m "UI 폰트 교체"'], run:()=>cmdCommit("UI 폰트 교체", true) },
       { cmd:'git merge feature-jump', run:()=>cmdMerge("feature-jump") }
+    ]
+  },
+  // Merge의 짝. 같은 파일을 양쪽이 고치면 git이 스스로 정하지 못하고 멈춘다.
+  // 멈춘 자리에서 add·commit이 다시 나오는 게 요점이다 — 충돌 해결도 결국 커밋이다
+  conflict: {
+    title:"같은 파일을 고쳐 충돌이 났을 때",
+    intro:"<b>충돌은 고장이 아닙니다.</b> 갈라진 두 노선이 <b>같은 파일</b>을 서로 다르게 고쳤을 때, git이 <b>어느 쪽이 맞는지 몰라 사람에게 물어보는</b> 것입니다. 여기서는 양쪽 모두 <code>style.css</code>를 고쳐 놓고 합쳐 봅니다. 아래 ‘다음 단계’를 눌러 한 줄씩 실행하세요.",
+    steps:[
+      { cmd:'git switch -c feature-jump', run:()=>cmdBranch("feature-jump") },
+      { cmd:['git add .','git commit -m "점프 물리"'],
+        run:()=>{ $("msg").value = "점프 물리"; cmdAdd("style.css"); cmdCommit(); } },
+      { cmd:'git switch main', run:()=>cmdSwitch("main") },
+      { cmd:['git add .','git commit -m "UI 폰트 교체"'],
+        run:()=>{ $("msg").value = "UI 폰트 교체"; cmdAdd("style.css"); cmdCommit(); } },
+      { cmd:'git merge feature-jump', run:()=>cmdMerge("feature-jump") },   // 여기서 멈춘다
+      { cmd:'# style.css를 열어 양쪽 내용을 모두 남겼습니다', run:()=>cmdResolve("both") },
+      { cmd:'git add style.css', run:()=>cmdAdd() },
+      { cmd:'git commit', run:()=>cmdCommit() }
     ]
   },
   rebase: {
@@ -1508,6 +1681,9 @@ $("btnAdd").onclick    = cmdAdd;
 $("btnCommit").onclick = ()=>cmdCommit($("msg").value.trim());
 // 적는 순간 "대합실"에 승객이 선다 — 아직 담기 전이라는 걸 보여 주는 자리
 $("msg").addEventListener("input", flowUpdate);
+$("btnOurs").onclick   = ()=>cmdResolve("ours");
+$("btnTheirs").onclick = ()=>cmdResolve("theirs");
+$("btnBoth").onclick   = ()=>cmdResolve("both");
 $("btnBranch").onclick = ()=>cmdBranch($("bname").value.trim());
 $("btnSwitch").onclick = ()=>cmdSwitch($("selSwitch").value);
 $("btnMerge").onclick  = ()=>cmdMerge($("selMerge").value);

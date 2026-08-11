@@ -1,8 +1,9 @@
 <!DOCTYPE html>
+<html lang="ko">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>지하철 노선도로 배우는 Git &amp; GitHub</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <!-- 파비콘도 파일 안에 둔다(단일 HTML 유지). 갈라지는 두 노선과 환승역 -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23EDF0F5'/%3E%3Cpath d='M10 24h18c8 0 8 16 16 16h10' stroke='%23EF7C1C' stroke-width='7' fill='none' stroke-linecap='round'/%3E%3Cpath d='M10 24h44' stroke='%230052A4' stroke-width='7' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='28' cy='24' r='7' fill='%23fff' stroke='%230052A4' stroke-width='5'/%3E%3C/svg%3E">
 <style>
@@ -23,6 +24,8 @@
     background:var(--paper);
     color:var(--ink);
     -webkit-font-smoothing:antialiased;
+    /* 한국어는 어절 단위로 줄을 바꾼다. 긴 토큰(URL·명령)은 break-word가 받는다 */
+    word-break:keep-all;overflow-wrap:break-word;
   }
   .wrap{max-width:1240px;margin:0 auto;padding:24px 20px 48px}
 
@@ -148,7 +151,7 @@
   .flow[data-at="repo"]  .fz[data-z="repo"]  .fzn{color:var(--ink)}
   /* 칸 사이 화살표 = 그 구간을 건너게 하는 명령 */
   .farr{
-    align-self:center;font-family:var(--mono);font-size:12.5px;font-weight:800;
+    align-self:center;font-family:var(--mono);font-size:12.5px;font-weight:700;
     color:var(--ink-soft);opacity:.5;white-space:nowrap;transition:opacity .3s, color .3s
   }
   .farr::after{content:" →"}
@@ -171,7 +174,7 @@
   .legend{
     display:flex;gap:16px;flex-wrap:wrap;align-items:center;
     padding:6px 8px 10px;border-bottom:1.5px dashed var(--rule);margin-bottom:6px;
-    font-size:14.5px;color:var(--ink-soft)
+    font-size:14.5px;line-height:1.45;color:var(--ink-soft)
   }
   .legend b{color:var(--ink);font-weight:700}
   .lg{display:flex;align-items:center;gap:6px}
@@ -189,7 +192,7 @@
     height:44px;line-height:44px;padding:0 12px;margin-bottom:8px;border-radius:8px;
     background:var(--paper);
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-    font-family:var(--mono);font-size:18.5px;font-weight:800;color:var(--ink)
+    font-family:var(--mono);font-size:18.5px;font-weight:700;color:var(--ink)
   }
   .cmdbar::before{content:"$ ";color:var(--head)}
   /* 거절은 배경까지 칠한다. 뒷자리에서 "막혔다"가 즉시 읽혀야 한다 */
@@ -199,13 +202,19 @@
   .cmdbar.n::before{content:""}
   .cmdbar.empty{color:var(--ink-soft);background:transparent;font-family:inherit;font-size:15.5px;font-weight:600}
   .cmdbar.empty::before{content:""}
-  /* 한 열로 접히는 폭부터는 사이드바가 노선도 바로 아래로 내려와 명령이 이미 가깝다 */
-  @media (max-width:900px){ .cmdbar{display:none} }
+  /* 한 열로 접히면 로그는 페이지 맨 아래(세 화면 밑)로 밀린다. 거절의 빨간 띠가
+     폰에서 사라지면 "거절은 교재"가 뷰포트 폭 하나로 무효가 되므로, 숨기지 않고 줄인다 */
+  @media (max-width:900px){
+    .cmdbar{height:32px;line-height:32px;font-size:15px;padding:0 10px;margin-bottom:6px}
+    .cmdbar.n{font-size:14px}
+    .cmdbar.empty{font-size:13.5px}
+  }
 
   /* ── 조작판 ── */
   .console{padding:16px;display:flex;flex-direction:column;gap:14px}
   /* 기본은 한 열. 1400px 이상에서만 두 열로 갈라진다 */
-  #freePanel{display:grid;grid-template-columns:1fr;align-items:start}
+  /* 1fr = minmax(auto,1fr) — nowrap 버튼 행이 트랙을 밀어 390px에서 페이지가 옆으로 넘쳤다 */
+  #freePanel{display:grid;grid-template-columns:minmax(0,1fr);align-items:start}
   /* 한 열로 쌓일 때만 두 묶음 사이를 띄운다. 두 열이면 나란히 서므로 필요 없다 */
   #freePanel .cmdcol + .cmdcol h2{margin-top:14px}
   /* ── 진행 순서 + 실행한 명령 ── */
@@ -297,8 +306,9 @@
   .log .c::before,.log .e::before{content:"$ ";color:var(--head);font-weight:700}
   .log .e{color:#B02A37}
   .log .n{color:var(--ink-soft)}
-  /* 명령이 터미널에 뿌린 출력. $도 #도 아니라 옮겨 칠 대상이 아니다 */
-  .log .o{color:var(--ink-soft);opacity:.8}
+  /* 명령이 터미널에 뿌린 출력. $도 #도 아니라 옮겨 칠 대상이 아니다.
+     opacity를 얹으면 실효 대비가 기준(4.5) 아래로 내려간다 — 접두 없음만으로 이미 구분된다 */
+  .log .o{color:var(--ink-soft)}
   /* 붉은 출력. CONFLICT처럼 "git이 뱉은 경고"라 $를 붙이면 명령으로 오해한다 */
   .log .x{color:#B02A37;font-weight:700}
   .log .empty{color:var(--ink-soft);font-family:inherit}
@@ -312,15 +322,22 @@
   .steps{font-size:16px;line-height:1.55}
   .steps .cmd{font-family:var(--mono);font-size:15.5px;font-weight:700;display:block;margin-bottom:5px}
   .steps .done{color:var(--ink-soft)}
+  /* 일부러 거절당하는 단계. 성공과 같은 ✓를 주면 "거절도 커리큘럼"이라는 정체성이 진행 순서에서만 사라진다 */
+  .steps .rejmark{color:#B02A37;font-weight:800}
 
   /* ── 자동 안내 ── */
-  .tour-cta{
+  /* 이 버튼은 .modes 안에 있다. `.modes button`(0,1,1)이 `.tour-cta`(0,1,0)를 이겨
+     분홍 CTA가 미선택 알약과 똑같이 렌더됐다 — 첫 사용자의 입구가 화면에서 가장 흐렸다.
+     묶음 안 선택자를 함께 적어 특정도를 0,2,0으로 올린다 */
+  .tour-cta, .modes .tour-cta{
     font-family:inherit;font-size:16px;font-weight:800;
     padding:9px 18px;border-radius:999px;cursor:pointer;
     border:1.5px solid var(--head);background:var(--head);color:#fff;
     transition:opacity .15s
   }
-  .tour-cta:hover{opacity:.85}
+  .tour-cta:hover, .modes .tour-cta:hover{opacity:.85;border-color:var(--head)}
+  /* 전역 포커스 링은 분홍이라 분홍 버튼 위에서는 안 보인다. 이 버튼만 잉크로 — 버튼 위·페이지 배경 위 둘 다 읽힌다 */
+  .tour-cta:focus-visible{outline-color:var(--ink)}
   /* 어둡게 덮는 건 막(mask) 쪽이고, 밝힐 자리는 clip-path로 뚫는다.
      구멍을 두 개 뚫을 수 있어야 "누른 버튼 + 바뀐 노선도"를 함께 보여줄 수 있다.
      box-shadow 방식은 겹칠 때마다 어둠이 누적돼 두 곳을 못 밝힌다 */
@@ -344,6 +361,7 @@
                width .35s cubic-bezier(.4,0,.2,1), height .35s cubic-bezier(.4,0,.2,1),
                opacity .25s ease;
   }
+  .tour-tip:focus{outline:none}   /* 대화상자 컨테이너 초기 포커스 — 컨트롤이 아니라 링을 안 그린다 */
   .tour-tip{
     position:fixed;z-index:52;left:50%;bottom:22px;transform:translateX(-50%);
     width:min(680px,calc(100vw - 28px));
@@ -373,7 +391,8 @@
   .tour-tip .meta .num{color:var(--ink-soft);letter-spacing:.04em}
   /* 진행 막대는 단계 하나당 한 칸. 칸을 누르면 그 단계로 건너뛴다. 장이 바뀌는 칸은 앞에 틈을 둔다 */
   .tour-bar{display:flex;gap:2px;margin-top:11px}
-  .tour-bar .seg{flex:1;min-width:3px;height:12px;padding:4px 0 5px;border:0;background:none;cursor:pointer}
+  /* 누를 수 있는 높이는 24px(터치 기준), 보이는 막대는 가운데 3px 그대로 */
+  .tour-bar .seg{flex:1;min-width:3px;height:24px;padding:10px 0 11px;border:0;background:none;cursor:pointer}
   .tour-bar .seg.br{margin-left:12px}
   .tour-bar .seg i{display:block;height:3px;background:var(--rule);border-radius:2px;overflow:hidden}
   .tour-bar .seg i b{display:block;height:100%;width:0;background:var(--head);border-radius:2px}
@@ -418,7 +437,7 @@
     </div>
   </header>
 
-  <div class="grid">
+  <main class="grid">
     <div class="panel map">
       <!-- 범례는 노선도 위에 둔다. 아래에 두면 SVG 높이(maxY)가 바뀔 때마다 따라 움직여
            기호를 확인할 때마다 눈으로 다시 찾아야 했다. 여기는 패널 위 가장자리라 자리가 고정된다.
@@ -456,7 +475,7 @@
         <div class="v" id="nowBranch">main</div>
       </div>
 
-      <div class="note" id="note">브랜치를 만들고 커밋해보세요.</div>
+      <div class="note" id="note" aria-live="polite">브랜치를 만들고 커밋해보세요.</div>
 
       <!-- 병합이 멈춘 동안에만 나타난다. 고르는 것은 "파일을 고치는" 일이고,
            그 뒤 add·commit을 해야 병합이 끝난다.
@@ -478,7 +497,7 @@
         <div class="cmdcol">
           <h2>명령</h2>
           <div class="row" style="margin:8px 0 6px">
-            <input type="text" id="msg" placeholder="무엇을 했나요" value="플레이어 이동 구현">
+            <input type="text" id="msg" placeholder="무엇을 했나요" value="플레이어 이동 구현" maxlength="40" aria-label="커밋 메시지">
             <button class="act ghost" id="btnAdd" title="바꾼 것을 담습니다 (git add .)">add</button>
           </div>
           <div class="staged" id="stagedBox" role="status" aria-live="polite" hidden>
@@ -489,19 +508,19 @@
             <button class="act" id="btnCommit" style="flex:1" title="담은 것을 저장합니다 (git commit -m)">commit</button>
           </div>
           <div class="row" style="margin-bottom:6px">
-            <input type="text" id="bname" placeholder="새 브랜치 이름" value="feature-jump">
+            <input type="text" id="bname" placeholder="새 브랜치 이름" value="feature-jump" maxlength="30" aria-label="새 브랜치 이름">
             <button class="act" id="btnBranch" title="새 브랜치를 만들며 옮겨 탑니다 (git switch -c)">switch -c</button>
           </div>
           <div class="row" style="margin-bottom:6px">
-            <select id="selSwitch"></select>
+            <select id="selSwitch" aria-label="이동할 브랜치"></select>
             <button class="act ghost" id="btnSwitch" title="다른 브랜치로 옮겨 탑니다 (git switch)">switch</button>
           </div>
           <div class="row" style="margin-bottom:6px">
-            <select id="selMerge"></select>
+            <select id="selMerge" aria-label="합쳐 올 브랜치"></select>
             <button class="act ghost" id="btnMerge" title="고른 브랜치를 지금 브랜치에 합칩니다 (git merge)">merge</button>
           </div>
           <div class="row" style="margin-bottom:10px">
-            <select id="selRebase"></select>
+            <select id="selRebase" aria-label="재배치 기준 브랜치"></select>
             <button class="act ghost" id="btnRebase" title="지금 브랜치를 고른 브랜치 끝으로 옮겨 답니다 (git rebase)">rebase</button>
           </div>
         </div>
@@ -556,7 +575,7 @@
         <div class="log" id="log" style="margin-top:8px"></div>
       </div>
     </div>
-  </div>
+  </main>
 </div>
 
 <script>
@@ -596,6 +615,8 @@ let mode = "free", scenario = null, stepIdx = 0;
 // 시나리오 "이전 단계"용. undoStack과 따로 쌓는다 — 거절 단계는 snap()을 부르지 않아
 // undoStack이 한 칸 어긋난다(cmdCommit·cmdPush의 거절 경로). 단계 실행 직전 상태를 통째로 담는다
 let stepStack = [];
+// 자유 모드를 떠날 때 작업을 한 칸 보관한다. 자유 모드에 있는 동안은 항상 null
+let freeSnap = null;
 
 const $ = id => document.getElementById(id);
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -1307,7 +1328,7 @@ function render(){
   const el = (t,a)=>{ const n=document.createElementNS(NS,t); for(const k in a) n.setAttribute(k,a[k]); return n; };
 
   if(emptyMsg){
-    const t = el("text",{ x:maxX/2, y:topPad, "text-anchor":"middle","font-size":16, fill:"#9AA6B4" });
+    const t = el("text",{ x:maxX/2, y:topPad, "text-anchor":"middle","font-size":16, fill:"#5B6876" });
     t.textContent = emptyMsg;
     svg.appendChild(t);
   }
@@ -1527,6 +1548,12 @@ function render(){
       if(k!=="selSwitch" && n===S.head) return;
       const o=document.createElement("option"); o.value=n; o.textContent=n; s.appendChild(o);
     });
+    // 대상이 없으면 빈 회색 칸이 고장처럼 보인다 — 무엇을 해야 생기는지 칸 안에서 말한다
+    if(!s.options.length){
+      const o=document.createElement("option");
+      o.value=""; o.disabled=true; o.selected=true; o.textContent="브랜치를 만드세요";
+      s.appendChild(o);
+    }
     if([...s.options].some(o=>o.value===keep)) s.value = keep;
   });
   // PR 대상: 서버에 있고 아직 origin/main에 안 들어간 기능 브랜치만
@@ -1536,6 +1563,11 @@ function render(){
     const n = r.name.slice(RPFX.length);
     const o = document.createElement("option"); o.value = n; o.textContent = n; sp.appendChild(o);
   });
+  if(!sp.options.length){
+    const o=document.createElement("option");
+    o.value=""; o.disabled=true; o.selected=true; o.textContent="서버에 기능 브랜치가 없습니다";
+    sp.appendChild(o);
+  }
   if([...sp.options].some(o=>o.value===keepPR)) sp.value = keepPR;
 
   // 저장소를 만들 때 한 번만 치는 명령. 이게 없으면 아래 기록을 그대로 옮겨 쳐도
@@ -1554,9 +1586,10 @@ function render(){
     : `<div class="empty">아직 실행한 명령이 없습니다.</div>`);
   lg.scrollTop = lg.scrollHeight;
 
-  // 노선도 위 "방금 실행한 명령". "o"는 명령이 뿌린 출력이라 건너뛰고 그 앞 명령 줄을 잡는다
+  // 노선도 위 "방금 실행한 명령". "o"(명령이 뿌린 출력)와 "x"(git이 뱉은 붉은 줄)는
+  // 명령이 아니므로 건너뛰고 그 앞 명령 줄을 잡는다 — x에 $가 붙으면 CONFLICT를 옮겨 칠 명령으로 오해한다
   const cc = $("curCmd");
-  const last = [...S.log].reverse().find(l => l.k !== "o");
+  const last = [...S.log].reverse().find(l => l.k !== "o" && l.k !== "x");
   cc.className = "cmdbar " + (last ? (last.k || "") : "empty");
   cc.textContent = last ? last.t : "명령을 실행하면 여기에 표시됩니다";
 
@@ -1584,7 +1617,7 @@ const SCEN = {
       // 저장소가 생겨도 커밋이 없으면 그림도 비어 있다. 첫 역이 생겨야 이름표가 붙는다
       { cmd:'git add .',                  run:()=>{ $("msg").value = "최초 커밋"; cmdAdd(); } },
       { cmd:'git commit -m "최초 커밋"',    run:()=>cmdCommit("최초 커밋") },
-      { cmd:'git commit -m "적 AI 추가"',
+      { cmd:'git commit -m "적 AI 추가"', rej:true,
         run:()=>{ $("msg").value = "적 AI 추가"; cmdCommit("적 AI 추가"); } },   // 거절된다
       { cmd:'git add .',                  run:()=>cmdAdd() },
       { cmd:'git commit -m "적 AI 추가"',  run:()=>cmdCommit("적 AI 추가") },
@@ -1664,7 +1697,7 @@ const SCEN = {
       // 내가 작업하는 사이 서버가 앞서 나간다. 내 브랜치도 known도 안 움직인다
       { cmd:'# 팀원이 원격에 "UI 폰트 교체" 커밋을 올렸습니다', run:()=>cmdTeamCommit("UI 폰트 교체") },
       { cmd:['git add .','git commit -m "적 AI 추가"'], run:()=>cmdCommit("적 AI 추가", true) },
-      { cmd:'git push', run:()=>cmdPush() },      // 거절된다 (non-fast-forward)
+      { cmd:'git push', rej:true, run:()=>cmdPush() },      // 거절된다 (non-fast-forward)
       { cmd:'git pull', run:()=>cmdPull() },      // 갈라져 있으므로 환승역이 생긴다
       { cmd:'git push', run:()=>cmdPush() }       // 이번엔 올라간다
     ]
@@ -1691,7 +1724,9 @@ function drawSteps(){
   // cmd가 배열이면 한 단계가 여러 줄이다 (담기+저장은 한 번에 실행되므로 함께 체크된다).
   // 아래 "실행한 명령"과 줄이 1:1로 맞아야 옮겨 칠 때 헷갈리지 않는다
   $("stepList").innerHTML = scenario.steps.map((s,i)=>{
-    const done = i < stepIdx, mark = done ? "✓" : "·";
+    // 일부러 거절당하는 단계(rej)는 지나고 나면 ✓ 대신 붉은 ✗ — 로그의 빨간 줄과 짝이 맞는다
+    const done = i < stepIdx,
+          mark = done ? (s.rej ? '<span class="rejmark">✗</span>' : "✓") : "·";
     return (Array.isArray(s.cmd) ? s.cmd : [s.cmd])
       .map(c => `<div class="${done?"done":""}">${mark} <span class="cmd" style="display:inline">${c}</span></div>`)
       .join("");
@@ -1701,6 +1736,10 @@ function drawSteps(){
   $("btnPrev").disabled = !stepStack.length;
 }
 function setMode(m){
+  // 자유 모드를 떠날 때 진행 상태를 보관한다 — 시나리오 알약 오터치 한 번에
+  // 쌓아 둔 그래프와 undoStack이 통째로 사라지지 않게. 초기화는 "처음부터"가 맡는다
+  if(mode === "free" && m !== "free" && S && S.log.length)
+    freeSnap = { s: clone(S), undo: undoStack.slice(), msg: $("msg").value, bname: $("bname").value };
   mode = m;
   // 시나리오 버튼은 묶음(.group) 안에 있어 직계 자식만 훑으면 놓친다
   $("modes").querySelectorAll("[data-mode]").forEach(b=> b.setAttribute("aria-pressed", b.dataset.mode===m));
@@ -1710,14 +1749,25 @@ function setMode(m){
   // clone 시나리오만 "내 컴퓨터가 빈 채로 서버에만 저장소가 있는" 상태에서 출발하고,
   // commit 시나리오는 서버도 저장소도 없는 빈 폴더에서 출발한다.
   // push 시나리오는 원격이 처음 등장하는 곳이라 원격 없이 시작해 remote add부터 직접 한다
+  let restored = false;
   if(m === "clone") freshClone();
   else if(m === "commit") freshEmpty();
+  else if(m === "free" && freeSnap){
+    S = clone(freeSnap.s); undoStack = freeSnap.undo.slice();
+    $("msg").value = freeSnap.msg; $("bname").value = freeSnap.bname;
+    freeSnap = null; restored = true;
+  }
   else fresh(m === "free" || m === "pr");
   if(m==="free"){
     $("freePanel").style.display=""; $("stepPanel").style.display="none";
-    say("브랜치를 만들고 커밋해보세요.");
+    say(restored
+      ? "아까 하던 자유 모드 그대로입니다. 새로 시작하려면 <b>처음부터</b>를 누르세요."
+      : "브랜치를 만들고 커밋해보세요.");
   } else {
     $("freePanel").style.display="none"; $("stepPanel").style.display="";
+    // 자유 모드의 입력 잔재가 남으면 "빈 폴더" 시나리오 첫 화면의 흐름 띠에 승객이 이미 서 있다.
+    // 자유 모드의 미리 채운 예시 문구는 의도된 것이므로 시나리오 진입 때만 비운다
+    $("msg").value = "";
     scenario = SCEN[m]; stepIdx = 0; drawSteps();
     // 시작 화면이 여느 시나리오와 다른 경우에만 따로 설명한다
     say(`<b>${scenario.title}</b> — ${scenario.intro || "아래 ‘다음 단계’를 눌러 한 줄씩 실행하세요."}`);
@@ -1893,6 +1943,7 @@ const TOUR = [
 const TOUR_CH = TOUR.reduce((a,s,i)=>{ a[i] = s.ch || a[i-1] || ""; return a; }, []);
 
 let tIdx = 0, tRaf = null, tPlaying = true, tEls = null, tActs = [];
+let tFocusReturn = null;   // 안내를 연 자리. 닫을 때 포커스를 돌려준다
 const TOUR_DOCK = 20;        // 노선도 패널과 말풍선 사이 고정 여백
 let tT0 = 0, tPauseAt = 0;   // 단계 시작 시각 / 일시정지한 시각
 let tSnap = [];              // 단계 진입 시점의 노선도 상태
@@ -1927,6 +1978,10 @@ function tourBuild(){
   const hole = document.createElement("div"); hole.className="tour-hole";
   const hole2 = document.createElement("div"); hole2.className="tour-hole2";
   const tip  = document.createElement("div"); tip.className="tour-tip";
+  // 대화상자 선언 + 컨테이너 포커스. 안 하면 포커스가 마스크 뒤 페이지에 남아
+  // Tab이 어두워진 컨트롤을 돈다. 배경 설명은 말풍선 본문이 대신 전달한다
+  tip.setAttribute("role","dialog"); tip.setAttribute("aria-modal","true");
+  tip.setAttribute("aria-labelledby","tTitle"); tip.tabIndex = -1;
   tip.innerHTML = `
     <div class="meta"><span id="tCh"></span><span class="num" id="tNum"></span></div>
     <h3 id="tTitle"></h3>
@@ -1949,17 +2004,20 @@ function tourBuild(){
   $("tPrev").onclick = ()=>tourGo(tIdx-1);
   $("tNext").onclick = ()=>tourGo(tIdx+1);
   $("tPlay").onclick = tourToggle;
-  $("tEnd").onclick  = tourEnd;
+  $("tEnd").onclick  = ()=>tourEnd();   // onclick에 바로 걸면 Event가 keepHash 자리에 들어간다
   mask.onclick = e=>{ if(e.target===mask) tourToggle(); };
 }
 
 function tourStart(step){
   tourEnd();
+  freeSnap = null;      // 안내는 처음 상태에서 재생한다 — 보관본을 복원하면 같은 커밋이 두 번 붙는다
   setMode("free");
   tourBuild();
   tIdx = 0; tPlaying = true; tSnap = [];
   tBase = tourCapture();            // 건너뛸 때 여기서 다시 재생한다
   document.body.classList.add("tour-on");
+  tFocusReturn = document.activeElement;
+  tEls.tip.focus();
   window.addEventListener("resize", tourPlace);
   window.addEventListener("scroll", tourSync, { passive:true });
   if(step > 0) tourJump(step); else tourShow();
@@ -2116,7 +2174,8 @@ function tourToggle(){
   $("tPlay").textContent = tPlaying ? "일시정지" : "이어보기";
 }
 
-function tourEnd(){
+// keepHash=true면 주소의 #step을 남긴다 — Esc는 실수로 눌리기 쉬워 재개 지점을 지우지 않는다
+function tourEnd(keepHash){
   tClear(); cancelAnimationFrame(tRaf);
   window.removeEventListener("resize", tourPlace);
   window.removeEventListener("scroll", tourSync);
@@ -2124,18 +2183,37 @@ function tourEnd(){
   document.body.style.removeProperty("--tour-pad");
   if(tEls){
     tEls.mask.remove(); tEls.hole.remove(); tEls.hole2.remove(); tEls.tip.remove(); tEls = null;
-    try { history.replaceState(null, "", location.pathname + location.search); }
-    catch(e) { /* file:// 등에서 막히면 그냥 둔다 */ }
+    // 연 자리로 포커스를 돌려준다. 페이지를 떠났거나 사라진 요소면 그냥 둔다
+    if(tFocusReturn && tFocusReturn.focus && document.contains(tFocusReturn)) tFocusReturn.focus();
+    tFocusReturn = null;
+    if(keepHash !== true)
+      try { history.replaceState(null, "", location.pathname + location.search); }
+      catch(e) { /* file:// 등에서 막히면 그냥 둔다 */ }
   }
 }
 
 $("btnTour").onclick = ()=>tourStart();
 document.addEventListener("keydown", e=>{
   if(!tEls) return;
-  if(e.key === "Escape") tourEnd();
+  if(e.key === "Escape") tourEnd(true);
   if(e.key === "ArrowRight") tourGo(tIdx+1);
   if(e.key === "ArrowLeft") tourGo(tIdx-1);
-  if(e.key === " "){ e.preventDefault(); tourToggle(); }
+  if(e.key === " "){
+    // 말풍선 안 버튼에 포커스가 있으면 Space는 그 버튼을 눌러야 한다 — 가로채면 "다음"이 안 눌린다
+    const a = document.activeElement;
+    if(a && a.tagName === "BUTTON" && tEls.tip.contains(a)) return;
+    e.preventDefault(); tourToggle();
+  }
+  if(e.key === "Tab"){
+    // 포커스를 말풍선 안에 가둔다. 밖은 어둡고 마스크에 덮여 있어 눌러도 보이지 않는다
+    // disabled(첫 단계의 '이전')는 브라우저가 건너뛰므로 경계 계산에서도 빼야 한다
+    const f = tEls.tip.querySelectorAll("button:not(:disabled)");
+    if(!f.length) return;
+    const first = f[0], last = f[f.length-1], a = document.activeElement;
+    const inside = tEls.tip.contains(a);
+    if(e.shiftKey && (!inside || a === first || a === tEls.tip)){ e.preventDefault(); last.focus(); }
+    else if(!e.shiftKey && (!inside || a === last)){ e.preventDefault(); first.focus(); }
+  }
 });
 
 fresh(); render();

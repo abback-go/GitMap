@@ -140,6 +140,11 @@
   .map{padding:6px;overflow:hidden;position:relative;
     box-shadow:0 2px 4px rgba(20,28,38,.08), 0 10px 24px rgba(20,28,38,.10), 0 30px 60px rgba(20,28,38,.12)}
   .map-scroll{overflow-x:auto;overflow-y:hidden}
+  /* 구역 기둥이 설 자리. 기둥이 뜰 때만 비운다 (원격이 없는 모드는 그대로 넓게 쓴다).
+     padding이 아니라 margin이어야 한다 — padding은 스크롤되는 내용의 일부라
+     가로로 밀면 역이 기둥 밑으로 들어가 가려진다. margin은 스크롤 영역 자체를
+     오른쪽에서 시작시키므로 그래프가 기둥을 침범하지 못한다 */
+  .map-scroll.zoned{margin-left:58px}
 
   /* ── 커밋 두 단계 흐름 (대합실 → 승강장 → 노선도) ──
      Commit 시나리오와 자유 모드에서 뜬다. 지하철 은유를 그대로 쓴다 —
@@ -183,22 +188,47 @@
     .fzn{font-size:11.5px}
     .farr{font-size:11px}
   }
-  /* 구역 머리글은 가로 스크롤을 따라가면 안 되므로 SVG 밖에 얹는다 */
+  /* 구역 머리글은 가로 스크롤을 따라가면 안 되므로 SVG 밖에 얹는다.
+     세로 기둥으로 세워 "어디부터 어디까지가 한 구역인지"를 길이로 보인다 —
+     가로 라벨은 시작점에 이름만 찍어 줄 뿐이라 경계가 안 읽혔고, 흐린 회색이라
+     노선도 위에서 사라졌다. 폭 44px은 글자(15px)에 좌우 여백을 넉넉히 준 값이다.
+     노선도가 그만큼 좁아져 Merge·Rebase에서 가로 스크롤이 생기지만,
+     구역이 안 읽히는 것보다 낫다고 판단해 폭을 우선했다 */
   .zone{
-    position:absolute;left:12px;padding:1px 7px;border-radius:7px;
-    font-size:14px;font-weight:700;letter-spacing:.2px;pointer-events:none
+    position:absolute;left:6px;width:44px;
+    display:flex;align-items:center;justify-content:center;
+    writing-mode:vertical-rl;text-orientation:upright;
+    font-size:15px;font-weight:800;letter-spacing:.12em;line-height:1;
+    border-radius:12px;pointer-events:none;
   }
-  /* 두 구역 머리글은 같은 색으로 둔다. #8A96A4는 흰 바탕에서 대비 3.01로 기준(4.5) 미달이었고,
-     아래 "팀 공용 서버"만 진해 두 구역이 대등해 보이지 않았다 */
-  .zone-local{color:var(--ink-soft);background:rgba(255,255,255,.88)}
-  .zone-remote{color:var(--ink-soft);background:#F1F5FA}
+  /* 흰 글씨를 얹어 두 구역을 대등하게 두되, 서버는 한 단계 흐린 잉크로 원격임을 알린다.
+     대비는 각각 16.9 / 9.4 */
+  .zone-local {color:#fff;background:var(--ink)}
+  .zone-remote{color:#fff;background:#46525F}
+  .zone-local::after,.zone-remote::after{content:none}
   svg{display:block}
+  /* 역 안내판처럼 판 위에 얹는다. 점선 밑줄 하나로는 노선도와 한 덩어리로 보여
+     "이건 기호 설명"이라는 게 안 읽혔다 */
   .legend{
-    display:flex;gap:16px;flex-wrap:wrap;align-items:center;
-    padding:6px 8px 10px;border-bottom:1.5px dashed var(--rule);margin-bottom:6px;
+    display:flex;gap:15px;flex-wrap:wrap;align-items:center;
+    padding:8px 13px;margin:0 0 10px;
+    background:var(--paper);border:1px solid var(--rule);border-radius:12px;
     font-size:14.5px;line-height:1.45;color:var(--ink-soft)
   }
+  .legend .ttl{
+    align-self:stretch;display:flex;align-items:center;
+    padding-right:14px;border-right:1.5px solid var(--rule);
+    font-size:12.5px;font-weight:800;letter-spacing:.08em;color:var(--ink-soft)
+  }
   .legend b{color:var(--ink);font-weight:700}
+  /* 좁은 화면에서는 범례가 세 줄로 접힌다. 판 여백을 조여 노선도를 위로 끌어올리고,
+     기둥도 한 치수 줄인다 — 글자는 여전히 담긴다(내컴퓨터 4칸 58px < 307px) */
+  @media (max-width:520px){
+    .legend{padding:7px 10px;gap:9px 13px;margin-bottom:8px}
+    .legend .ttl{padding-right:11px}
+    .zone{width:37px;font-size:13.5px}
+    .map-scroll.zoned{margin-left:49px}
+  }
   .lg{display:flex;align-items:center;gap:6px}
   .lg i{width:17px;height:17px;border-radius:50%;border:3px solid var(--ink-soft);background:#fff;display:inline-block}
   .lg i.transfer{border-color:var(--ink);box-shadow:inset 0 0 0 2px #fff, inset 0 0 0 4px var(--ink)}
@@ -397,18 +427,31 @@
   .tour-tip{
     position:fixed;z-index:52;left:50%;bottom:22px;transform:translateX(-50%);
     width:min(680px,calc(100vw - 28px));
-    background:#fff;border-radius:16px;padding:16px 18px 12px;
+    background:#fff;border-radius:16px;padding:0;overflow:hidden;
     box-shadow:0 18px 50px rgba(0,0,0,.32);
     transition:top .25s ease;
   }
+  /* 머리부만 헤더와 같은 잉크 판으로 덮고 위에 노선색 여섯을 띠로 얹는다.
+     흰 상자 하나뿐일 때는 안내가 화면에 떠 있는 또 하나의 패널로 보였다 —
+     역무실 안내판과 같은 옷을 입혀야 "이건 설명하는 목소리"로 읽힌다.
+     본문은 흰 바탕 그대로 둔다 (읽는 글이 길어 반전하면 피로하다) */
+  .tour-tip .cap{position:relative;background:var(--ink);padding:15px 18px 14px}
+  .tour-tip .cap::before{
+    content:"";position:absolute;left:0;right:0;top:0;height:4px;
+    background:linear-gradient(90deg,
+      #0052A4 0 16.667%, #EF7C1C 0 33.333%, #00A84D 0 50%,
+      #996CAC 0 66.667%, #00A5DE 0 83.333%, #B5651D 0 100%);
+  }
+  .tour-tip .body{padding:15px 18px 12px}
   /* 좁은 화면은 말풍선을 화면 아래 고정하므로, 강조 대상을 그 위로
      끌어올릴 수 있도록 높이만큼 페이지 여백을 확보한다 */
   body.tour-on .wrap{padding-bottom:var(--tour-pad,48px)}
+  /* 잉크 판 위에서는 --head(#E6186C)가 대비 3.82로 미달이다. 같은 계열을 밝혀 6.4로 올린다 */
   .tour-tip .meta{
     display:flex;align-items:center;gap:8px;
-    font-size:13.5px;font-weight:800;letter-spacing:.1em;color:var(--head);margin-bottom:6px
+    font-size:13.5px;font-weight:800;letter-spacing:.1em;color:#FF6BA3;margin-bottom:5px
   }
-  .tour-tip h3{margin:0 0 6px;font-size:21px;font-weight:800;letter-spacing:-.02em}
+  .tour-tip h3{margin:0;font-size:21px;font-weight:800;letter-spacing:-.02em;color:#fff}
   .tour-tip p{margin:0;font-size:17px;line-height:1.65;color:#33404E}
   .tour-tip p code{font-family:var(--mono);font-size:15.5px;background:var(--paper);padding:1px 5px;border-radius:4px}
   .tour-tip p b{color:var(--ink)}
@@ -420,7 +463,7 @@
   .tour-ctl button:hover{border-color:var(--ink)}
   .tour-ctl button.pri{background:var(--ink);border-color:var(--ink);color:#fff}
   .tour-ctl .sp{flex:1}
-  .tour-tip .meta .num{color:var(--ink-soft);letter-spacing:.04em}
+  .tour-tip .meta .num{color:#A9B4C0;letter-spacing:.04em}   /* 잉크 판 위 대비 8.2 */
   /* 진행 막대는 단계 하나당 한 칸. 칸을 누르면 그 단계로 건너뛴다. 장이 바뀌는 칸은 앞에 틈을 둔다 */
   .tour-bar{display:flex;gap:2px;margin-top:11px}
   /* 누를 수 있는 높이는 24px(터치 기준), 보이는 막대는 가운데 3px 그대로 */
@@ -475,6 +518,7 @@
            기호를 확인할 때마다 눈으로 다시 찾아야 했다. 여기는 패널 위 가장자리라 자리가 고정된다.
            기호의 자세한 뜻은 안내 3부 "기호 읽는 법"이 맡는다 — 여기서는 이름만 짚는다 -->
       <div class="legend">
+        <span class="ttl">범례</span>
         <span class="lg"><i></i> <b>커밋</b></span>
         <span class="lg"><i class="transfer"></i> <b>병합 커밋</b></span>
         <span class="lg"><i class="ghost"></i> <b>버려진 커밋</b></span>
@@ -497,8 +541,12 @@
         <div class="fz" data-z="repo"><span class="fzn">노선도</span><i class="fdot station"></i></div>
       </div>
       <div class="map-scroll"><svg id="canvas" role="img" aria-label="Git 커밋 그래프"></svg></div>
-      <div class="zone zone-local" id="zoneLocal" hidden>내 컴퓨터 (로컬)</div>
-      <div class="zone zone-remote" id="zoneRemote" hidden>팀 공용 서버 (origin)</div>
+      <!-- 세로 기둥이라 공백은 빈 칸 하나를 통째로 먹는다. 붙여 쓰고 전체 이름은
+           title·aria-label에 남긴다 (세로 간판은 원래 낱자를 쌓아 읽힌다) -->
+      <div class="zone zone-local"  id="zoneLocal"  hidden
+           title="내 컴퓨터 (로컬)"       aria-label="내 컴퓨터 (로컬) 구역">내컴퓨터</div>
+      <div class="zone zone-remote" id="zoneRemote" hidden
+           title="팀 공용 서버 (origin)" aria-label="팀 공용 서버 (origin) 구역">팀서버</div>
     </div>
 
     <div class="panel console">
@@ -642,7 +690,7 @@ let prevPos = new Map();
 // offsetTop이 달라진다. 웹폰트가 늦게 와 글자 폭이 바뀌면 줄 수가 바뀌고, 그 리플로우는
 // render()가 끝난 뒤에야 반영된다 — 그 프레임에 읽으면 머리글이 이름표를 덮는다.
 // 그래서 좌표만 따로 떼어 두고 크기가 변할 때마다 다시 잡는다
-let zoneBandTop = 0;
+let zoneBandTop = 0, zoneMaxY = 0;   // 서버 띠 시작 y / 노선도 전체 높이 (기둥 길이 계산용)
 let mode = "free", scenario = null, stepIdx = 0;
 // 시나리오 "이전 단계"용. undoStack과 따로 쌓는다 — 거절 단계는 snap()을 부르지 않아
 // undoStack이 한 칸 어긋난다(cmdCommit·cmdPush의 거절 경로). 단계 실행 직전 상태를 통째로 담는다
@@ -1207,13 +1255,32 @@ function flowFly(){
   flowTimer = setTimeout(()=>{ flowHold = false; flowUpdate(); }, 950);
 }
 
-// 구역 머리글 두 개의 세로 위치. render()와 따로 부를 수 있어야 한다 (위 zoneBandTop 주석 참고)
+// 구역 기둥 두 개의 세로 위치와 길이. render()와 따로 부를 수 있어야 한다
+// (위 zoneBandTop 주석 참고). SVG는 width/height를 maxX·maxY로 직접 박으므로
+// SVG 좌표와 화면 픽셀이 1:1이다 — bandTop을 그대로 써도 된다
+// 세로 기둥은 높이가 글자 수를 정한다. 담기지 않으면 조용히 잘리므로(overflow가 아니라
+// 그냥 안 보인다) 짧은 구역에서는 짧은 이름으로 바꾼다 — clone 시작 화면은 로컬이
+// 통째로 비어 구역이 40px밖에 안 되고, 거기서 "내컴퓨터"가 "내컴"으로 잘렸다
+function fitZone(el, h, full, short){
+  const fs  = parseFloat(getComputedStyle(el).fontSize) || 15;
+  const per = fs * 1.12;                       // letter-spacing .12em 포함한 한 글자 높이
+  el.textContent = (full.length * per + 10 <= h) ? full : short;
+}
+
 function placeZones(){
-  const zl = $("zoneLocal");
+  const zl = $("zoneLocal"), zr = $("zoneRemote");
   if(!zl || zl.hidden) return;
   const svgTop = $("canvas").parentNode.offsetTop;
-  zl.style.top = (svgTop + 3) + "px";
-  $("zoneRemote").style.top = (svgTop + zoneBandTop + 7) + "px";
+  // 두 기둥이 맞물리는 경계는 bandTop 한 곳뿐이다. 위는 여기서 끝나고 아래는 여기서 시작한다
+  const hL = Math.max(44, zoneBandTop - 6);
+  // 로컬 기둥에 최소 높이를 준 만큼 서버 기둥도 밀어야 한다. 안 밀면 뒤에 그려지는
+  // 서버 기둥이 로컬 기둥의 아래쪽을 덮어 글자가 사라진다 (clone 시작에서 "로컬"이 "로"가 됐다)
+  const rTop = Math.max(zoneBandTop + 2, hL + 8);
+  const hR = Math.max(44, zoneMaxY - rTop - 2);
+  zl.style.top = (svgTop + 2) + "px";     zl.style.height = hL + "px";
+  zr.style.top = (svgTop + rTop) + "px";  zr.style.height = hR + "px";
+  fitZone(zl, hL, "내컴퓨터", "로컬");
+  fitZone(zr, hR, "팀서버",   "서버");
 }
 
 function render(){
@@ -1342,9 +1409,12 @@ function render(){
   // 서버 구역 경계. 서버 전용 줄이 있으면 그 줄 바로 위까지 올라온다.
   // 로컬이 통째로 비면(clone 전) 경계가 머리글까지 밀려 올라가므로 위쪽을 막아 둔다
   // 105 = 역 위 메시지·해시(62)와 머리글 자리(31)를 합쳐 띄우는 높이
+  // 하한 84: 예전 24는 "내 컴퓨터 칸이 비어 있다"가 눈에 안 보일 만큼 얇았고,
+  // 세로 기둥이 글자를 담지 못해 서버 기둥에 덮였다. 로컬 커밋이 0개일 때만 걸린다
+  // (줄이 하나라도 있으면 firstRemoteY-105가 189을 넘는다)
   const firstRemoteY = topPad + Math.max(0, firstRemoteRow)*ROW_H + R_CAP;
   const bandTop = hasRemoteRows
-    ? Math.max(24, firstRemoteY - 105)
+    ? Math.max(84, firstRemoteY - 105)
     : bodyBottom + BAND_GAP;
   // 서버 이름표는 언제나 구역 맨 아래에 모인다
   const lastRowY = Math.max(topPad, ...Object.values(pos).map(p=>p.y));
@@ -1380,10 +1450,12 @@ function render(){
   svg.insertBefore(desc, svg.firstChild);
 
   $("zoneLocal").hidden = $("zoneRemote").hidden = !hasBand;
+  // 기둥이 설 자리는 기둥이 있을 때만 비운다
+  document.querySelector(".map-scroll").classList.toggle("zoned", hasBand);
   if(hasBand){
     // 위치 계산은 placeZones()가 맡는다. 여기서 읽은 offsetTop은 범례가 몇 줄로
     // 접히느냐에 따라 달라지는데, 그 리플로우가 아직 반영되지 않은 프레임이 있다
-    zoneBandTop = bandTop;
+    zoneBandTop = bandTop; zoneMaxY = maxY;
     placeZones();
     // 서버 전용 역이 있으면 그 역들까지 구역 안에 들어와야 한다
     svg.appendChild(el("rect",{ x:0, y:bandTop, width:maxX, height:maxY - bandTop, fill:"#F1F5FA" }));
@@ -2044,17 +2116,21 @@ function tourBuild(){
   tip.setAttribute("role","dialog"); tip.setAttribute("aria-modal","true");
   tip.setAttribute("aria-labelledby","tTitle"); tip.tabIndex = -1;
   tip.innerHTML = `
-    <div class="meta"><span id="tCh"></span><span class="num" id="tNum"></span></div>
-    <h3 id="tTitle"></h3>
-    <p id="tBody"></p>
-    <div class="tour-ctl">
-      <button id="tPrev">이전</button>
-      <button id="tPlay" class="pri">일시정지</button>
-      <span class="sp"></span>
-      <button id="tNext">다음</button>
-      <button id="tEnd">닫기</button>
+    <div class="cap">
+      <div class="meta"><span id="tCh"></span><span class="num" id="tNum"></span></div>
+      <h3 id="tTitle"></h3>
     </div>
-    <div class="tour-bar" id="tBar"></div>`;
+    <div class="body">
+      <p id="tBody"></p>
+      <div class="tour-ctl">
+        <button id="tPrev">이전</button>
+        <button id="tPlay" class="pri">일시정지</button>
+        <span class="sp"></span>
+        <button id="tNext">다음</button>
+        <button id="tEnd">닫기</button>
+      </div>
+      <div class="tour-bar" id="tBar"></div>
+    </div>`;
   document.body.append(mask, hole, hole2, tip);
   tEls = {mask, hole, hole2, tip};
   // 단계 하나당 칸 하나. 장이 바뀌는 칸 앞에는 틈을 준다

@@ -11,7 +11,9 @@
 
 import { readFileSync } from "node:fs";
 
-const read = (f) => readFileSync(new URL(`../${f}`, import.meta.url), "utf8");
+// Windows에서 체크아웃하면 줄 끝이 CRLF다. 줄 단위로 견주는 검사들이
+// "}"를 "}\r"과 맞춰 보다 통째로 실패한다 — 읽을 때 한 번 LF로 맞춰 둔다
+const read = (f) => readFileSync(new URL(`../${f}`, import.meta.url), "utf8").replace(/\r\n/g, "\n");
 const html = read("index.html");
 const readme = read("README.md");
 const claude = read("CLAUDE.md");

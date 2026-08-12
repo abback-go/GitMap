@@ -1,4 +1,9 @@
 {
+  "name": "GitMap",
+  "private": true,
+  "scripts": {
+    "prepare": "git config core.hooksPath .githooks"
+  },
   "devDependencies": {
     "playwright": "^1.62.1"
   }

@@ -1772,7 +1772,10 @@ const SCEN = {
       { cmd:'git init', run:()=>cmdInit() },
       // 저장소가 생겨도 커밋이 없으면 그림도 비어 있다. 첫 역이 생겨야 이름표가 붙는다
       { cmd:'git add .',                  run:()=>{ $("msg").value = "최초 커밋"; cmdAdd(); } },
-      { cmd:'git commit -m "최초 커밋"',    run:()=>cmdCommit("최초 커밋") },
+      // 첫 역이 생기는 자리에서 해시라는 말을 한 번 붙인다 —
+      // cmdCommit의 say()는 일곱 자리를 보여 주기만 하고 이름을 부르지 않는다
+      { cmd:'git commit -m "최초 커밋"',    run:()=>{ cmdCommit("최초 커밋");
+          $("note").innerHTML += ` 동그라미 아래 일곱 자리가 <b>커밋 해시</b>입니다 — git이 <b>커밋 내용에서 계산해</b> 붙이는 이름표라 사람이 정하지 않습니다.`; } },
       { cmd:'git commit -m "적 AI 추가"', rej:true,
         run:()=>{ $("msg").value = "적 AI 추가"; cmdCommit("적 AI 추가"); } },   // 거절된다
       { cmd:'git add .',                  run:()=>cmdAdd() },

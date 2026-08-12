@@ -1395,143 +1395,11 @@ function syncPanel(){
   cc.textContent = last ? last.t : "명령을 실행하면 여기에 표시됩니다";
 }
 
-function render(){
-  // 흐름 띠는 노선도 위에 있어 뜨고 지는 것만으로 .map-scroll의 offsetTop을 바꾼다.
-  // placeZones()보다 먼저 확정해야 구역 머리글이 옛 자리에 남지 않는다
-  flowUpdate();
-  const reach = new Set();
-  Object.values(S.branches).forEach(b => ancestors(b.head).forEach(x=>reach.add(x)));
-
-  const depth = {};
-  S.order.forEach(id=>{
-    const p = S.commits[id].parents;
-    depth[id] = p.length ? Math.max(...p.map(x=>depth[x]??0)) + 1 : 0;
-  });
-
-  // 서버에는 있지만 아직 fetch하지 않은 역. 줄 배치보다 먼저 알아야 해서 여기서 구한다
-  // 내 저장소 자체가 없으면(clone 전) 받은 것도 없다 — 서버 커밋 전부가 "아직 안 받은 역"이다.
-  // known을 비우는 방법도 있지만 그러면 서버 띠 이름표가 통째로 사라진다(rlabels가 known에 붙는다)
-  const gotten = new Set();
-  if(S.head) Object.values(S.branches).forEach(b=>{
-    ancestors(b.remote ? b.known : b.head).forEach(x=>gotten.add(x));
-  });
-  const unfetched = id => !gotten.has(id);
-
-  // 가로줄 배치: 세 종류를 위에서부터 L → G → R 순으로 쌓는다
-  //   L 내 컴퓨터에 있는 역 / G rebase 후 버려진 역 / R 서버에만 있고 아직 안 받은 역
-  // R을 맨 아래로 몰아야 "내 컴퓨터" 머리글 아래에 서버 것이 섞이지 않는다.
-  // (버려진 역은 로컬에서 생긴 것이므로 R보다 위, 즉 내 컴퓨터 구역에 남는다)
-  const ROW_ORD = { L:0, G:1, R:2 };
-  const rowKind = id => !reach.has(id) ? "G" : (unfetched(id) ? "R" : "L");
-  const rowKey = id => rowKind(id) + S.commits[id].lane;
-  const rows = [];
-  S.order.forEach(id=>{ const k = rowKey(id); if(!rows.includes(k)) rows.push(k); });
-  rows.sort((a,b)=> ROW_ORD[a[0]] - ROW_ORD[b[0]] || (+a.slice(1)) - (+b.slice(1)));
-  const rowOf = {}; rows.forEach((k,i)=>rowOf[k]=i);
-  const rowIdx = id => rowOf[rowKey(id)];
-  // 서버 구역이 시작되는 줄. 이 줄 위가 "내 컴퓨터"와 "팀 공용 서버"의 경계다
-  const firstRemoteRow = rows.findIndex(k => k[0] === "R");
-  const hasRemoteRows = firstRemoteRow >= 0;
-
-  // 커밋별 브랜치 이름표 묶음 (HEAD → 이름표 → 커밋 3단 구조에 쓰인다)
-  // 원격 이름표는 아래 서버 띠에 따로 모은다. 커밋(역)은 한 번만 그린다
-  const labels = {}, rlabels = {};
-  Object.values(S.branches).forEach(b=>{
-    // 원격 이름표는 서버의 실제 위치(head)가 아니라 내가 아는 위치(known)에 붙는다
-    const at = b.remote ? b.known : b.head;
-    if(!at) return;
-    const bag = b.remote ? rlabels : labels;
-    (bag[at] = bag[at] || []).push(b);
-  });
-  // 주소만 등록해 둔 상태(git remote add 직후)에도 구역은 연다. 대신 안이 비어 있다는 걸 보여준다
-  const emptyBand = !Object.keys(rlabels).length && !!S.origin;
-  const hasBand = Object.keys(rlabels).length > 0 || emptyBand;
-
-  // 이름표 알약 너비. 글자 수로 어림잡으면 한글이 알약을 넘는다(10자부터 넘쳤다).
-  // Pretendard는 고정폭이 아니므로 실제 그려질 폭을 재서 쓴다
-  const lblW = b => textW(b.name, b.name===S.head ? 800 : 600) + 24;
-  const lblExt = b => lblW(b) + (b.name===S.head ? 76 : 8);       // HEAD 뱃지까지 포함한 오른쪽 끝
-  const lblRight = list => 26 + Math.max(...list.map(lblExt));
-  const stackMax = Math.max(1, ...Object.values(labels).map(l=>l.length));
-  const ROW_H = Math.max(ROW_H0, (stackMax-1)*LBL_GAP + 82);      // 이름표가 아래 lane 글자와 겹치지 않게
-
-  // 열 간격: 이름표 오른쪽에 같은 줄의 다음 역이 오면 그만큼 벌린다
-  const maxDepth = Math.max(0, ...Object.values(depth));
-  // 부모-자식 여부와 상관없이, 같은 줄 다음 칸에 역이 있으면 그만큼 벌린다
-  const taken = new Set(S.order.map(id => rowIdx(id)+":"+depth[id]));
-  const gapAt = [];
-  Object.keys(labels).forEach(cid=>{
-    if(!taken.has(rowIdx(cid)+":"+(depth[cid]+1))) return;
-    const d = depth[cid];
-    gapAt[d] = Math.max(gapAt[d]||0, lblRight(labels[cid]) + 37);
-  });
-  // 서버 띠 이름표는 역 아래 가운데 정렬로 묶여 놓인다. 이웃 열의 묶음과 겹치지 않게 벌린다
-  const bandW = list => list.reduce((s,b)=>s+lblW(b),0) + (list.length-1)*6;
-  const bandAt = [];
-  Object.keys(rlabels).forEach(cid=>{
-    const d = depth[cid];
-    bandAt[d] = Math.max(bandAt[d]||0, bandW(rlabels[cid]));
-  });
-  for(let d=0; d<maxDepth; d++){
-    if(bandAt[d] && bandAt[d+1])
-      gapAt[d] = Math.max(gapAt[d]||0, bandAt[d]/2 + bandAt[d+1]/2 + 12);
-  }
-  const colX = []; let colCur = PAD_X;
-  for(let d=0; d<=maxDepth; d++){ colX[d] = colCur; colCur += Math.max(COL_W, gapAt[d]||0); }
-
-  // 왼쪽 끝 역의 서버 이름표 묶음이 x=0 밖으로 나가면 전체를 오른쪽으로 민다
-  let shift = 0;
-  Object.keys(rlabels).forEach(cid=>{
-    shift = Math.max(shift, 10 - (colX[depth[cid]] - bandW(rlabels[cid])/2));
-  });
-  if(shift > 0) for(let d=0; d<colX.length; d++) colX[d] += shift;
-
-  const topPad = PAD_Y + (hasBand ? BAND_CAP : 0);   // 위쪽 "내 컴퓨터" 머리글 자리
-  // 서버 구역 줄은 통째로 내려 "팀 공용 서버" 머리글이 역 메시지를 덮지 않게 한다
-  const R_CAP = 31;
-  const pos = {};
-  S.order.forEach(id=>{
-    pos[id] = { x: colX[depth[id]],
-                y: topPad + rowIdx(id)*ROW_H + (rowKind(id) === "R" ? R_CAP : 0) };
-  });
-
-  // 자리가 바뀐 역. pull로 받아와 서버 구역에서 올라오는 경우가 대표적이다
-  const movedIds = new Set();
-  S.order.forEach(id=>{
-    const pv = prevPos.get(id), p = pos[id];
-    if(pv && (Math.abs(pv.x - p.x) > 0.5 || Math.abs(pv.y - p.y) > 0.5)) movedIds.add(id);
-  });
-
-  let rightEnd = Math.max(...Object.values(pos).map(p=>p.x), PAD_X) + 60;
-  Object.keys(labels).forEach(cid=>{ rightEnd = Math.max(rightEnd, pos[cid].x + lblRight(labels[cid])); });
-  // 서버 띠의 이름표 묶음은 역 아래 가운데 정렬이라 오른쪽으로 묶음 폭의 절반만큼 나간다
-  Object.keys(rlabels).forEach(cid=>{
-    rightEnd = Math.max(rightEnd, pos[cid].x + bandW(rlabels[cid])/2 + 14);
-  });
-  // 띠 머리글이 잘리지 않게. 빈 띠는 안내 문구가 들어가므로 더 넓게 잡는다
-  if(hasBand) rightEnd = Math.max(rightEnd, emptyBand ? 300 : 176);
-  // 역이 하나도 없는 상태(빈 폴더 · git init 직후)는 텅 빈 화면이 고장으로 보인다. 한 줄 남긴다
-  const emptyMsg = S.order.length ? null
-    : (S.head ? "저장소는 생겼지만 아직 커밋이 없습니다" : "아직 저장소가 없습니다");
-  const maxX = Math.max(rightEnd + 18, emptyMsg ? 340 : 0);
-  // 로컬 구역의 아래끝. 서버 전용 줄(R)은 서버 구역이므로 여기서 뺀다
-  const localRows = hasRemoteRows ? firstRemoteRow : rows.length;
-  const bodyBottom = topPad + Math.max(0, localRows-1)*ROW_H
-             + Math.max(76, (stackMax-1)*LBL_GAP + 38);
-  // 서버 구역 경계. 서버 전용 줄이 있으면 그 줄 바로 위까지 올라온다.
-  // 로컬이 통째로 비면(clone 전) 경계가 머리글까지 밀려 올라가므로 위쪽을 막아 둔다
-  // 105 = 역 위 메시지·해시(62)와 머리글 자리(31)를 합쳐 띄우는 높이
-  // 하한 84: 예전 24는 "내 컴퓨터 칸이 비어 있다"가 눈에 안 보일 만큼 얇았고,
-  // 세로 기둥이 글자를 담지 못해 서버 기둥에 덮였다. 로컬 커밋이 0개일 때만 걸린다
-  // (줄이 하나라도 있으면 firstRemoteY-105가 189을 넘는다)
-  const firstRemoteY = topPad + Math.max(0, firstRemoteRow)*ROW_H + R_CAP;
-  const bandTop = hasRemoteRows
-    ? Math.max(84, firstRemoteY - 105)
-    : bodyBottom + BAND_GAP;
-  // 서버 이름표는 언제나 구역 맨 아래에 모인다
-  const lastRowY = Math.max(topPad, ...Object.values(pos).map(p=>p.y));
-  const bandY = hasRemoteRows ? lastRowY + 62 : bandTop + 44;   // 서버 이름표 세로 중심
-  const maxY = hasBand ? (hasRemoteRows ? bandY + 28 : bandTop + BAND_H) : bodyBottom;
+// 노선도 그리기. layout이 낸 좌표만 받아 SVG를 새로 그린다.
+// 순수하지 않다 — seenNodes·seenEdges를 채우고, zoneMaxY·zoneBandTop을 쓰고,
+// placeZones()를 부르고, 자리가 바뀐 역에는 rAF를 건다. 그리기 순서(줄 안내선 →
+// 서버 띠 → 선로 → 역 → 이름표)는 z-order라 바꾸면 겹치는 것이 달라진다
+function paint({ reach, unfetched, rows, labels, rlabels, emptyBand, hasBand, lblW, bandW, ROW_H, topPad, pos, movedIds, maxX, maxY, emptyMsg, bandTop, bandY }){
   const svg = $("canvas");
   svg.setAttribute("viewBox", `0 0 ${maxX} ${maxY}`);
   svg.setAttribute("width", maxX);
@@ -1753,13 +1621,155 @@ function render(){
     });
   });
 
-  syncPanel();
 
   const box = document.querySelector(".map-scroll");
   box.scrollLeft = box.scrollWidth;                 // 기본은 가장 최근 역
   const c0 = cur();                                 // clone 전에는 현재 브랜치가 없다
   const hx = c0 && c0.head ? pos[c0.head].x : null; // 좁은 화면에서 HEAD가 잘리면 그쪽으로
   if(hx !== null && hx < box.scrollLeft + 40) box.scrollLeft = Math.max(0, hx - 60);
+
+}
+
+function render(){
+  // 흐름 띠는 노선도 위에 있어 뜨고 지는 것만으로 .map-scroll의 offsetTop을 바꾼다.
+  // placeZones()보다 먼저 확정해야 구역 머리글이 옛 자리에 남지 않는다
+  flowUpdate();
+  const reach = new Set();
+  Object.values(S.branches).forEach(b => ancestors(b.head).forEach(x=>reach.add(x)));
+
+  const depth = {};
+  S.order.forEach(id=>{
+    const p = S.commits[id].parents;
+    depth[id] = p.length ? Math.max(...p.map(x=>depth[x]??0)) + 1 : 0;
+  });
+
+  // 서버에는 있지만 아직 fetch하지 않은 역. 줄 배치보다 먼저 알아야 해서 여기서 구한다
+  // 내 저장소 자체가 없으면(clone 전) 받은 것도 없다 — 서버 커밋 전부가 "아직 안 받은 역"이다.
+  // known을 비우는 방법도 있지만 그러면 서버 띠 이름표가 통째로 사라진다(rlabels가 known에 붙는다)
+  const gotten = new Set();
+  if(S.head) Object.values(S.branches).forEach(b=>{
+    ancestors(b.remote ? b.known : b.head).forEach(x=>gotten.add(x));
+  });
+  const unfetched = id => !gotten.has(id);
+
+  // 가로줄 배치: 세 종류를 위에서부터 L → G → R 순으로 쌓는다
+  //   L 내 컴퓨터에 있는 역 / G rebase 후 버려진 역 / R 서버에만 있고 아직 안 받은 역
+  // R을 맨 아래로 몰아야 "내 컴퓨터" 머리글 아래에 서버 것이 섞이지 않는다.
+  // (버려진 역은 로컬에서 생긴 것이므로 R보다 위, 즉 내 컴퓨터 구역에 남는다)
+  const ROW_ORD = { L:0, G:1, R:2 };
+  const rowKind = id => !reach.has(id) ? "G" : (unfetched(id) ? "R" : "L");
+  const rowKey = id => rowKind(id) + S.commits[id].lane;
+  const rows = [];
+  S.order.forEach(id=>{ const k = rowKey(id); if(!rows.includes(k)) rows.push(k); });
+  rows.sort((a,b)=> ROW_ORD[a[0]] - ROW_ORD[b[0]] || (+a.slice(1)) - (+b.slice(1)));
+  const rowOf = {}; rows.forEach((k,i)=>rowOf[k]=i);
+  const rowIdx = id => rowOf[rowKey(id)];
+  // 서버 구역이 시작되는 줄. 이 줄 위가 "내 컴퓨터"와 "팀 공용 서버"의 경계다
+  const firstRemoteRow = rows.findIndex(k => k[0] === "R");
+  const hasRemoteRows = firstRemoteRow >= 0;
+
+  // 커밋별 브랜치 이름표 묶음 (HEAD → 이름표 → 커밋 3단 구조에 쓰인다)
+  // 원격 이름표는 아래 서버 띠에 따로 모은다. 커밋(역)은 한 번만 그린다
+  const labels = {}, rlabels = {};
+  Object.values(S.branches).forEach(b=>{
+    // 원격 이름표는 서버의 실제 위치(head)가 아니라 내가 아는 위치(known)에 붙는다
+    const at = b.remote ? b.known : b.head;
+    if(!at) return;
+    const bag = b.remote ? rlabels : labels;
+    (bag[at] = bag[at] || []).push(b);
+  });
+  // 주소만 등록해 둔 상태(git remote add 직후)에도 구역은 연다. 대신 안이 비어 있다는 걸 보여준다
+  const emptyBand = !Object.keys(rlabels).length && !!S.origin;
+  const hasBand = Object.keys(rlabels).length > 0 || emptyBand;
+
+  // 이름표 알약 너비. 글자 수로 어림잡으면 한글이 알약을 넘는다(10자부터 넘쳤다).
+  // Pretendard는 고정폭이 아니므로 실제 그려질 폭을 재서 쓴다
+  const lblW = b => textW(b.name, b.name===S.head ? 800 : 600) + 24;
+  const lblExt = b => lblW(b) + (b.name===S.head ? 76 : 8);       // HEAD 뱃지까지 포함한 오른쪽 끝
+  const lblRight = list => 26 + Math.max(...list.map(lblExt));
+  const stackMax = Math.max(1, ...Object.values(labels).map(l=>l.length));
+  const ROW_H = Math.max(ROW_H0, (stackMax-1)*LBL_GAP + 82);      // 이름표가 아래 lane 글자와 겹치지 않게
+
+  // 열 간격: 이름표 오른쪽에 같은 줄의 다음 역이 오면 그만큼 벌린다
+  const maxDepth = Math.max(0, ...Object.values(depth));
+  // 부모-자식 여부와 상관없이, 같은 줄 다음 칸에 역이 있으면 그만큼 벌린다
+  const taken = new Set(S.order.map(id => rowIdx(id)+":"+depth[id]));
+  const gapAt = [];
+  Object.keys(labels).forEach(cid=>{
+    if(!taken.has(rowIdx(cid)+":"+(depth[cid]+1))) return;
+    const d = depth[cid];
+    gapAt[d] = Math.max(gapAt[d]||0, lblRight(labels[cid]) + 37);
+  });
+  // 서버 띠 이름표는 역 아래 가운데 정렬로 묶여 놓인다. 이웃 열의 묶음과 겹치지 않게 벌린다
+  const bandW = list => list.reduce((s,b)=>s+lblW(b),0) + (list.length-1)*6;
+  const bandAt = [];
+  Object.keys(rlabels).forEach(cid=>{
+    const d = depth[cid];
+    bandAt[d] = Math.max(bandAt[d]||0, bandW(rlabels[cid]));
+  });
+  for(let d=0; d<maxDepth; d++){
+    if(bandAt[d] && bandAt[d+1])
+      gapAt[d] = Math.max(gapAt[d]||0, bandAt[d]/2 + bandAt[d+1]/2 + 12);
+  }
+  const colX = []; let colCur = PAD_X;
+  for(let d=0; d<=maxDepth; d++){ colX[d] = colCur; colCur += Math.max(COL_W, gapAt[d]||0); }
+
+  // 왼쪽 끝 역의 서버 이름표 묶음이 x=0 밖으로 나가면 전체를 오른쪽으로 민다
+  let shift = 0;
+  Object.keys(rlabels).forEach(cid=>{
+    shift = Math.max(shift, 10 - (colX[depth[cid]] - bandW(rlabels[cid])/2));
+  });
+  if(shift > 0) for(let d=0; d<colX.length; d++) colX[d] += shift;
+
+  const topPad = PAD_Y + (hasBand ? BAND_CAP : 0);   // 위쪽 "내 컴퓨터" 머리글 자리
+  // 서버 구역 줄은 통째로 내려 "팀 공용 서버" 머리글이 역 메시지를 덮지 않게 한다
+  const R_CAP = 31;
+  const pos = {};
+  S.order.forEach(id=>{
+    pos[id] = { x: colX[depth[id]],
+                y: topPad + rowIdx(id)*ROW_H + (rowKind(id) === "R" ? R_CAP : 0) };
+  });
+
+  // 자리가 바뀐 역. pull로 받아와 서버 구역에서 올라오는 경우가 대표적이다
+  const movedIds = new Set();
+  S.order.forEach(id=>{
+    const pv = prevPos.get(id), p = pos[id];
+    if(pv && (Math.abs(pv.x - p.x) > 0.5 || Math.abs(pv.y - p.y) > 0.5)) movedIds.add(id);
+  });
+
+  let rightEnd = Math.max(...Object.values(pos).map(p=>p.x), PAD_X) + 60;
+  Object.keys(labels).forEach(cid=>{ rightEnd = Math.max(rightEnd, pos[cid].x + lblRight(labels[cid])); });
+  // 서버 띠의 이름표 묶음은 역 아래 가운데 정렬이라 오른쪽으로 묶음 폭의 절반만큼 나간다
+  Object.keys(rlabels).forEach(cid=>{
+    rightEnd = Math.max(rightEnd, pos[cid].x + bandW(rlabels[cid])/2 + 14);
+  });
+  // 띠 머리글이 잘리지 않게. 빈 띠는 안내 문구가 들어가므로 더 넓게 잡는다
+  if(hasBand) rightEnd = Math.max(rightEnd, emptyBand ? 300 : 176);
+  // 역이 하나도 없는 상태(빈 폴더 · git init 직후)는 텅 빈 화면이 고장으로 보인다. 한 줄 남긴다
+  const emptyMsg = S.order.length ? null
+    : (S.head ? "저장소는 생겼지만 아직 커밋이 없습니다" : "아직 저장소가 없습니다");
+  const maxX = Math.max(rightEnd + 18, emptyMsg ? 340 : 0);
+  // 로컬 구역의 아래끝. 서버 전용 줄(R)은 서버 구역이므로 여기서 뺀다
+  const localRows = hasRemoteRows ? firstRemoteRow : rows.length;
+  const bodyBottom = topPad + Math.max(0, localRows-1)*ROW_H
+             + Math.max(76, (stackMax-1)*LBL_GAP + 38);
+  // 서버 구역 경계. 서버 전용 줄이 있으면 그 줄 바로 위까지 올라온다.
+  // 로컬이 통째로 비면(clone 전) 경계가 머리글까지 밀려 올라가므로 위쪽을 막아 둔다
+  // 105 = 역 위 메시지·해시(62)와 머리글 자리(31)를 합쳐 띄우는 높이
+  // 하한 84: 예전 24는 "내 컴퓨터 칸이 비어 있다"가 눈에 안 보일 만큼 얇았고,
+  // 세로 기둥이 글자를 담지 못해 서버 기둥에 덮였다. 로컬 커밋이 0개일 때만 걸린다
+  // (줄이 하나라도 있으면 firstRemoteY-105가 189을 넘는다)
+  const firstRemoteY = topPad + Math.max(0, firstRemoteRow)*ROW_H + R_CAP;
+  const bandTop = hasRemoteRows
+    ? Math.max(84, firstRemoteY - 105)
+    : bodyBottom + BAND_GAP;
+  // 서버 이름표는 언제나 구역 맨 아래에 모인다
+  const lastRowY = Math.max(topPad, ...Object.values(pos).map(p=>p.y));
+  const bandY = hasRemoteRows ? lastRowY + 62 : bandTop + 44;   // 서버 이름표 세로 중심
+  const maxY = hasBand ? (hasRemoteRows ? bandY + 28 : bandTop + BAND_H) : bodyBottom;
+  // 계산 끝. 여기부터는 좌표를 읽기만 한다
+  paint({ reach, unfetched, rows, labels, rlabels, emptyBand, hasBand, lblW, bandW, ROW_H, topPad, pos, movedIds, maxX, maxY, emptyMsg, bandTop, bandY });
+  syncPanel();
 
   // 다음 render에서 "어디서 옮겨 왔는지" 알기 위해 이번 자리를 남긴다
   prevPos = new Map(S.order.map(id => [id, { x:pos[id].x, y:pos[id].y }]));

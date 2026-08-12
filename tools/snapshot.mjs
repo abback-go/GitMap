@@ -87,7 +87,10 @@ const GRAB = `(() => {
     const e = document.getElementById(id);
     return e.hidden ? "hidden" : \`\${e.textContent}@\${e.style.top}+\${e.style.height}\`;
   };
+  // 노선도 가로 스크롤. render()가 마지막에 잡는 값이라 실행 순서가 바뀌면 여기서 드러난다
+  const ms = document.querySelector(".map-scroll");
   return {
+    scroll: \`\${Math.round(ms.scrollLeft)}/\${ms.scrollWidth}/\${ms.clientWidth}\`,
     svg: svg.outerHTML,
     now: document.getElementById("nowBranch").textContent,
     staged: document.getElementById("stagedBox").hidden ? "" : document.getElementById("stagedTxt").textContent,
@@ -105,6 +108,11 @@ const GRAB = `(() => {
 // ── 뜨기 ─────────────────────────────────────────────────
 const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+
+// 페이지에서 터진 것은 즉시 크게 알린다. 그리기가 예외로 멈추면 SVG가 옛 상태로 남아
+// "조금 달라졌네"처럼 보이는데, 실제로는 코드가 죽은 것이라 원인을 한참 헤매게 된다
+const errors = [];
+page.on("pageerror", (e) => errors.push(e.message.split("\n")[0]));
 
 // 웹폰트를 막아 글자 폭을 고정한다. 이걸 안 막으면 실행마다 좌표가 흔들린다
 await page.route("**/*", (r) => (/^https?:/.test(r.request().url()) ? r.abort() : r.continue()));
@@ -152,6 +160,12 @@ for (const [i, cmd] of FREE.entries()) {
 }
 
 await browser.close();
+
+if (errors.length) {
+  console.error(`\n페이지에서 오류가 났습니다 (${errors.length}건). 스냅샷을 믿을 수 없습니다:`);
+  for (const e of [...new Set(errors)]) console.error(`  ${e}`);
+  process.exit(2);
+}
 
 const out = process.argv[2] ?? "snapshot.json";
 writeFileSync(out, JSON.stringify(shots, null, 1));

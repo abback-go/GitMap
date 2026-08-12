@@ -66,6 +66,15 @@ const labels = buttons.map((b) => b.label);
 // git 명령에 대응하는 버튼 = 라벨이 소문자 라틴 문자로만 된 것 (CLAUDE.md 1절 3번)
 const isCmdLabel = (l) => /^[a-z]+(?: -[a-z])?$/.test(l);
 
+// function 이름(){ … } 한 덩어리를 통째로 꺼낸다 (닫는 }가 열 0에 있는 규칙에 기댄다)
+const fnBody = (name) => {
+  const lines = html.split("\n");
+  const i = lines.findIndex((l) => l.startsWith(`function ${name}(`));
+  if (i < 0) return null;
+  const j = lines.findIndex((l, k) => k > i && l === "}");
+  return lines.slice(i, j + 1).join("\n");
+};
+
 const num = (name) => {
   const m = html.match(new RegExp(`\\b${name}\\s*=\\s*(-?\\d+)`));
   return m ? +m[1] : null;
@@ -169,7 +178,45 @@ check("PR은 (열기)·(병합) 두 버튼으로 나뉘어 있다", () => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// 3. 하드 제약 — 어기면 산출물이 못 쓰게 되는 것들
+// 3. 렌더 파이프라인 — 순서와 봉인
+// ─────────────────────────────────────────────────────────────
+g("렌더 파이프라인");
+
+const PIPELINE = ["flowUpdate", "graphOf", "rowsOf", "columnsOf", "boundsOf", "paint", "syncPanel"];
+
+check("render()가 계산·그리기를 문서 순서대로 부른다", () => {
+  const body = fnBody("render");
+  if (!body) return "render()를 못 찾았습니다";
+  const called = [...body.matchAll(/^\s*(?:const \w+ = )?(\w+)\(/gm)]
+    .map((m) => m[1]).filter((n) => PIPELINE.includes(n));
+  return called.join(" → ") === PIPELINE.join(" → ") ||
+    [`지금: ${called.join(" → ")}`, `문서: ${PIPELINE.join(" → ")}`,
+     "flowUpdate가 맨 앞이 아니면 구역 머리글이 옛 자리에 남고, 국면 순서가 어긋나면 좌표가 틀립니다"];
+});
+
+check("계산 네 국면이 모두 있고 render()에만 쓰인다", () => {
+  const missing = ["graphOf", "rowsOf", "columnsOf", "boundsOf"].filter((n) => !fnBody(n));
+  if (missing.length) return `${missing.join(", ")}가 없습니다`;
+  // render() 밖에서 부르면 국면 순서 보장이 깨진다
+  const outside = ["graphOf", "rowsOf", "columnsOf", "boundsOf"].filter((n) => {
+    const hits = [...html.matchAll(new RegExp(`\\b${n}\\(`, "g"))].length;
+    return hits > 2;                                    // 정의 1 + render()의 호출 1
+  });
+  return !outside.length || outside.map((n) => `${n}()를 render() 밖에서도 부릅니다`);
+});
+
+check("colX를 columnsOf() 밖에서 고치지 않는다", () => {
+  // 예전에 colX는 만든 뒤 바깥에서 밀렸다. 그 사이에 코드를 끼우면 밀리기 전 좌표를
+  // 받는데 예외도 로그도 없었다 — 이 검사가 그 자리를 다시 열지 못하게 막는다
+  const own = fnBody("columnsOf") ?? "";
+  const writes = [...html.matchAll(/\bcolX\s*(?:\[[^\]]*\])?\s*(?:\+=|=[^=])/g)]
+    .map((m) => ({ text: m[0].trim(), line: lineAt(html, m.index) }))
+    .filter((w) => !own.includes(w.text));
+  return !writes.length || writes.map((w) => `index.html:${w.line} ${w.text} — colX는 columnsOf()가 완성해 내보냅니다`);
+});
+
+// ─────────────────────────────────────────────────────────────
+// 4. 하드 제약 — 어기면 산출물이 못 쓰게 되는 것들
 // ─────────────────────────────────────────────────────────────
 g("하드 제약");
 
@@ -209,7 +256,7 @@ check("범례 아이콘이 기호 규칙을 따른다 (버려진 커밋=점 / �
 });
 
 // ─────────────────────────────────────────────────────────────
-// 4. 문서 동기화 — CLAUDE.md가 코드를 정확히 적고 있는가
+// 5. 문서 동기화 — CLAUDE.md가 코드를 정확히 적고 있는가
 // ─────────────────────────────────────────────────────────────
 g("문서 동기화");
 

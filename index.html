@@ -144,7 +144,7 @@
      padding이 아니라 margin이어야 한다 — padding은 스크롤되는 내용의 일부라
      가로로 밀면 역이 기둥 밑으로 들어가 가려진다. margin은 스크롤 영역 자체를
      오른쪽에서 시작시키므로 그래프가 기둥을 침범하지 못한다 */
-  .map-scroll.zoned{margin-left:58px}
+  .map-scroll.zoned{margin-left:52px}
 
   /* ── 커밋 두 단계 흐름 (대합실 → 승강장 → 노선도) ──
      Commit 시나리오와 자유 모드에서 뜬다. 지하철 은유를 그대로 쓴다 —
@@ -194,13 +194,19 @@
      노선도 위에서 사라졌다. 폭 44px은 글자(15px)에 좌우 여백을 넉넉히 준 값이다.
      노선도가 그만큼 좁아져 Merge·Rebase에서 가로 스크롤이 생기지만,
      구역이 안 읽히는 것보다 낫다고 판단해 폭을 우선했다 */
+  /* 라틴 문자는 upright로 세우면 L/o/c/a/l이 한 칸씩 쌓여 다섯 칸을 먹고 읽기도 어색하다.
+     기본값(mixed)으로 두면 90도 누워 책등·간판과 같은 방식이 된다 — 짧고 잘 읽힌다 */
   .zone{
-    position:absolute;left:6px;width:44px;
+    position:absolute;left:6px;width:38px;
     display:flex;align-items:center;justify-content:center;
-    writing-mode:vertical-rl;text-orientation:upright;
-    font-size:15px;font-weight:800;letter-spacing:.12em;line-height:1;
-    border-radius:12px;pointer-events:none;
+    writing-mode:vertical-rl;
+    font-size:14.5px;font-weight:800;letter-spacing:.06em;line-height:1;
+    border-radius:11px;pointer-events:none;white-space:nowrap;
   }
+  /* hidden 속성은 UA 스타일시트의 display:none이라 저자 스타일 display:flex에 진다.
+     이 한 줄이 없으면 원격이 없는 시나리오에서 Remote 기둥이 지워지지 않고
+     직전 크기 그대로 남아 잘린 채 보인다 */
+  .zone[hidden]{display:none}
   /* 흰 글씨를 얹어 두 구역을 대등하게 두되, 서버는 한 단계 흐린 잉크로 원격임을 알린다.
      대비는 각각 16.9 / 9.4 */
   .zone-local {color:#fff;background:var(--ink)}
@@ -222,12 +228,12 @@
   }
   .legend b{color:var(--ink);font-weight:700}
   /* 좁은 화면에서는 범례가 세 줄로 접힌다. 판 여백을 조여 노선도를 위로 끌어올리고,
-     기둥도 한 치수 줄인다 — 글자는 여전히 담긴다(내컴퓨터 4칸 58px < 307px) */
+     기둥도 한 치수 줄인다 — 누운 라틴 문자는 41px이라 여유가 크다 */
   @media (max-width:520px){
     .legend{padding:7px 10px;gap:9px 13px;margin-bottom:8px}
     .legend .ttl{padding-right:11px}
-    .zone{width:37px;font-size:13.5px}
-    .map-scroll.zoned{margin-left:49px}
+    .zone{width:33px;font-size:13.5px}
+    .map-scroll.zoned{margin-left:44px}
   }
   .lg{display:flex;align-items:center;gap:6px}
   .lg i{width:17px;height:17px;border-radius:50%;border:3px solid var(--ink-soft);background:#fff;display:inline-block}
@@ -541,12 +547,13 @@
         <div class="fz" data-z="repo"><span class="fzn">노선도</span><i class="fdot station"></i></div>
       </div>
       <div class="map-scroll"><svg id="canvas" role="img" aria-label="Git 커밋 그래프"></svg></div>
-      <!-- 세로 기둥이라 공백은 빈 칸 하나를 통째로 먹는다. 붙여 쓰고 전체 이름은
-           title·aria-label에 남긴다 (세로 간판은 원래 낱자를 쌓아 읽힌다) -->
+      <!-- git 문서가 쓰는 이름 그대로 둔다. 학생이 `git branch -r`·`origin/main`에서
+           다시 만날 단어라 기둥이 그 말을 미리 익히는 자리가 된다.
+           한국어 뜻은 title·aria-label과 안내 2단계 본문이 맡는다 -->
       <div class="zone zone-local"  id="zoneLocal"  hidden
-           title="내 컴퓨터 (로컬)"       aria-label="내 컴퓨터 (로컬) 구역">내컴퓨터</div>
+           title="Local — 내 컴퓨터"        aria-label="Local, 내 컴퓨터 구역">Local</div>
       <div class="zone zone-remote" id="zoneRemote" hidden
-           title="팀 공용 서버 (origin)" aria-label="팀 공용 서버 (origin) 구역">팀서버</div>
+           title="Remote — 팀 공용 서버(origin)" aria-label="Remote, 팀 공용 서버 구역">Remote</div>
     </div>
 
     <div class="panel console">
@@ -1258,29 +1265,41 @@ function flowFly(){
 // 구역 기둥 두 개의 세로 위치와 길이. render()와 따로 부를 수 있어야 한다
 // (위 zoneBandTop 주석 참고). SVG는 width/height를 maxX·maxY로 직접 박으므로
 // SVG 좌표와 화면 픽셀이 1:1이다 — bandTop을 그대로 써도 된다
-// 세로 기둥은 높이가 글자 수를 정한다. 담기지 않으면 조용히 잘리므로(overflow가 아니라
-// 그냥 안 보인다) 짧은 구역에서는 짧은 이름으로 바꾼다 — clone 시작 화면은 로컬이
-// 통째로 비어 구역이 40px밖에 안 되고, 거기서 "내컴퓨터"가 "내컴"으로 잘렸다
-function fitZone(el, h, full, short){
-  const fs  = parseFloat(getComputedStyle(el).fontSize) || 15;
-  const per = fs * 1.12;                       // letter-spacing .12em 포함한 한 글자 높이
-  el.textContent = (full.length * per + 10 <= h) ? full : short;
+// 세로 기둥은 높이가 담을 수 있는 글자를 정한다. 넘쳐도 overflow가 아니라 그냥 안 보이므로
+// (writing-mode 요소는 scrollHeight가 안 커진다) 실제로 그려진 글자 높이를 재서 맞춘다.
+// 라틴 문자는 누워 있어 글자 수 × 폰트로는 계산되지 않는다 — Range로 실측할 것
+function fitZone(el, h){
+  const room = h - 8;
+  for(const fs of [null, 13, 11.5, 10]){       // null = CSS가 정한 기본 크기
+    el.style.fontSize = fs ? fs + "px" : "";
+    const r = document.createRange(); r.selectNodeContents(el);
+    if(r.getBoundingClientRect().height <= room) return;
+  }
 }
 
 function placeZones(){
   const zl = $("zoneLocal"), zr = $("zoneRemote");
   if(!zl || zl.hidden) return;
   const svgTop = $("canvas").parentNode.offsetTop;
+  // 원격이 없는 시나리오(Commit·Merge·Conflict·Rebase)에서는 노선도 전체가 로컬이다.
+  // 예전에는 두 기둥을 함께 숨겼는데, 그러면 일곱 시나리오 중 넷에서 구역 이름이
+  // 통째로 사라져 "여기가 어디인지"를 화면이 말해 주지 않았다
+  if(zr.hidden){
+    zl.style.top = (svgTop + 2) + "px";
+    zl.style.height = Math.max(44, zoneMaxY - 4) + "px";
+    fitZone(zl, Math.max(44, zoneMaxY - 4));
+    return;
+  }
   // 두 기둥이 맞물리는 경계는 bandTop 한 곳뿐이다. 위는 여기서 끝나고 아래는 여기서 시작한다
   const hL = Math.max(44, zoneBandTop - 6);
   // 로컬 기둥에 최소 높이를 준 만큼 서버 기둥도 밀어야 한다. 안 밀면 뒤에 그려지는
-  // 서버 기둥이 로컬 기둥의 아래쪽을 덮어 글자가 사라진다 (clone 시작에서 "로컬"이 "로"가 됐다)
+  // 서버 기둥이 로컬 기둥의 아래쪽을 덮어 글자가 사라진다 (clone 시작에서 겪었다)
   const rTop = Math.max(zoneBandTop + 2, hL + 8);
   const hR = Math.max(44, zoneMaxY - rTop - 2);
   zl.style.top = (svgTop + 2) + "px";     zl.style.height = hL + "px";
   zr.style.top = (svgTop + rTop) + "px";  zr.style.height = hR + "px";
-  fitZone(zl, hL, "내컴퓨터", "로컬");
-  fitZone(zr, hR, "팀서버",   "서버");
+  fitZone(zl, hL);
+  fitZone(zr, hR);
 }
 
 function render(){
@@ -1449,13 +1468,19 @@ function render(){
     : "커밋을 역, 브랜치를 노선으로 그린 그래프입니다.";
   svg.insertBefore(desc, svg.firstChild);
 
-  $("zoneLocal").hidden = $("zoneRemote").hidden = !hasBand;
-  // 기둥이 설 자리는 기둥이 있을 때만 비운다
-  document.querySelector(".map-scroll").classList.toggle("zoned", hasBand);
+  // Local 기둥은 커밋이 하나라도 그려지면 언제나 선다 — 원격이 없는 시나리오에서도
+  // "여기는 내 컴퓨터"라는 말은 유효하다. Remote 기둥만 원격이 있을 때 붙는다.
+  // (커밋이 0개면 노선도가 안내 문구 한 줄뿐이라 구역을 나눌 것이 없다)
+  const showLocal = S.order.length > 0;
+  $("zoneLocal").hidden  = !showLocal;
+  $("zoneRemote").hidden = !hasBand;
+  document.querySelector(".map-scroll").classList.toggle("zoned", showLocal);
+  zoneMaxY = maxY;
+  if(!hasBand && showLocal) placeZones();
   if(hasBand){
     // 위치 계산은 placeZones()가 맡는다. 여기서 읽은 offsetTop은 범례가 몇 줄로
     // 접히느냐에 따라 달라지는데, 그 리플로우가 아직 반영되지 않은 프레임이 있다
-    zoneBandTop = bandTop; zoneMaxY = maxY;
+    zoneBandTop = bandTop;
     placeZones();
     // 서버 전용 역이 있으면 그 역들까지 구역 안에 들어와야 한다
     svg.appendChild(el("rect",{ x:0, y:bandTop, width:maxX, height:maxY - bandTop, fill:"#F1F5FA" }));

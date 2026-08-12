@@ -126,8 +126,15 @@
   @media (min-width:1400px){
     .wrap{max-width:1560px}
     /* 조작판을 넓히면 그만큼 노선도가 줄어든다. 글자를 16px로 키운 뒤 Rebase 그래프가
-       781px까지 뻗으므로, 여기서 20px만 더 가져가도 가로 스크롤이 생긴다 */
+       781px까지 뻗으므로, 여기서 20px만 더 가져가도 가로 스크롤이 생긴다.
+       560px은 자유 모드에서 명령·원격 두 묶음을 나란히 세우기 위한 값이다 */
     .grid{grid-template-columns:1fr 560px}
+    /* 시나리오 모드에는 그 두 묶음이 없다(#freePanel이 통째로 숨는다). 남은 것은
+       현재 위치·설명·진행 버튼뿐이라 440px로 충분하고, 되찾은 120px이 Rebase 8단계
+       (유령 커밋이 새 lane으로 가며 그래프가 가장 넓어지는 지점, SVG 836px)를 담아 낸다.
+       420px은 미디어 쿼리가 막 켜지는 1400px에서 그 그래프가 들어가는 값이다 —
+       440px이면 딱 10px이 모자란다 */
+    body.scen .grid{grid-template-columns:1fr 420px}
   }
   @media (max-width:900px){
     .grid{grid-template-columns:1fr}
@@ -1900,6 +1907,9 @@ function setMode(m){
     freeSnap = null; restored = true;
   }
   else fresh(m === "free" || m === "pr");
+  // 시나리오 모드는 조작판에서 명령 버튼 묶음이 통째로 빠진다. 그만큼 폭을 노선도에
+  // 돌려주지 않으면 Rebase처럼 넓은 그래프가 빈 조작판 옆에서 가로 스크롤에 걸린다
+  document.body.classList.toggle("scen", m !== "free");
   if(m==="free"){
     $("freePanel").style.display=""; $("stepPanel").style.display="none";
     say(restored

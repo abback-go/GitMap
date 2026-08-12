@@ -46,6 +46,27 @@ git 명령 ↔ 거절·설명 문구가 부르는 이름), 하드 제약(`localS
 규칙을 새로 만들면서 "N군데를 함께 고쳐야 한다"를 적게 되면, 그 규칙은 여기 검사로
 옮길 수 있는지 먼저 보라.
 
+### 그림을 안 바꿨다는 증명 (리팩터할 때만)
+
+```bash
+npx playwright install chromium          # 처음 한 번. 받아 둔 게 있으면 PW_CHROMIUM에 경로를
+node tools/snapshot.mjs before.json      # 고치기 전
+# … 고친다 …
+node tools/snapshot.mjs after.json
+node tools/snapshot.mjs --diff before.json after.json    # 0이어야 한다
+```
+
+시나리오 일곱 편의 **모든 단계**와 자유 모드 조작열 — 78개 상태 — 에서 그려진 SVG와
+사이드 UI를 받아 적어 견준다. `EDGE_SPLIT`을 1px 움직이면 18개 상태가 어긋나는 것을
+확인해 두었다.
+
+**결정성을 위해 세 가지를 고정한다** — 웹폰트 차단(뜬 판과 안 뜬 판은 `textW()`가 달라
+좌표가 통째로 밀린다), 애니메이션 흔적 제거, `Math.random` 씨앗 고정(커밋 해시가 매번
+달라 78개 중 75개가 어긋났다). 하나라도 빠지면 같은 코드로 두 번 떠도 diff가 난다.
+
+**동작을 바꾸는 작업에는 쓰지 않는다.** 이건 "아무것도 안 바뀌었다"를 증명하는 도구다.
+`shots/`와 `node_modules/`는 `.gitignore`에 있으므로 결과 JSON은 저장소 밖에 둔다.
+
 ### 브라우저
 
 브라우저 MCP는 세션마다 다르다. **먼저 붙어 있는 도구를 확인하고 그에 맞춰 진행한다.**

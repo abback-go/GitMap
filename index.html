@@ -14,61 +14,82 @@
     --ink-soft:#5B6876;
     --rule:#D3DAE3;
     --head:#E6186C;
-    --shadow:0 1px 2px rgba(20,28,38,.06), 0 8px 24px rgba(20,28,38,.07);
+    --shadow:0 1px 2px rgba(20,28,38,.07), 0 5px 14px rgba(20,28,38,.07), 0 18px 44px rgba(20,28,38,.10);
     --mono: ui-monospace, "SFMono-Regular", "Cascadia Mono", Consolas, "D2Coding", monospace;
   }
   *{box-sizing:border-box}
   html,body{margin:0;height:100%}
   body{
     font-family:"Pretendard Variable",Pretendard,"Malgun Gothic",system-ui,sans-serif;
-    background:var(--paper);
+    /* 제도 용지의 미세 점격자. 노선도가 놓인 바닥이 종이라는 것을 배경이 말한다 */
+    background:
+      radial-gradient(circle at 1px 1px, rgba(20,28,38,.055) 1px, transparent 0) 0 0/22px 22px,
+      var(--paper);
     color:var(--ink);
     -webkit-font-smoothing:antialiased;
     /* 한국어는 어절 단위로 줄을 바꾼다. 긴 토큰(URL·명령)은 break-word가 받는다 */
     word-break:keep-all;overflow-wrap:break-word;
   }
-  .wrap{max-width:1240px;margin:0 auto;padding:24px 20px 48px}
+  /* 브라우저가 기본값으로 주는 표면도 팔레트로 칠한다 */
+  ::selection{background:var(--head);color:#fff}
+  :root{color-scheme:light}
+  *{scrollbar-width:thin;scrollbar-color:var(--rule) transparent}
+  *::-webkit-scrollbar{width:11px;height:11px}
+  *::-webkit-scrollbar-thumb{background:var(--rule);border-radius:99px;border:3px solid transparent;background-clip:content-box}
+  *::-webkit-scrollbar-thumb:hover{background:var(--ink-soft);background-clip:content-box}
+  *::-webkit-scrollbar-track{background:transparent}
+  .wrap{max-width:1240px;margin:0 auto;padding:0 20px 48px}
 
+  /* 역무실 안내판. 진한 판에 흰 글씨, 아래는 노선색 여섯이 그대로 띠가 된다 */
   header.top{
     display:flex;align-items:flex-end;justify-content:space-between;
     gap:20px;flex-wrap:wrap;
-    padding-bottom:14px;margin-bottom:18px;
-    border-bottom:2px solid var(--ink);
+    position:relative;
+    margin:0 -20px 20px;padding:26px 20px 20px;
+    background:var(--ink);
+    box-shadow:0 6px 26px rgba(20,28,38,.28);
+  }
+  header.top::after{
+    content:"";position:absolute;left:0;right:0;bottom:0;height:6px;
+    background:linear-gradient(90deg,
+      #0052A4 0 16.667%, #EF7C1C 0 33.333%, #00A84D 0 50%,
+      #996CAC 0 66.667%, #00A5DE 0 83.333%, #B5651D 0 100%);
   }
   h1{
     margin:0;font-size:37px;font-weight:800;letter-spacing:-.03em;line-height:1.1;
+    color:#fff;
   }
-  h1 .sub{display:block;font-size:16px;font-weight:500;letter-spacing:0;color:var(--ink-soft);margin-top:7px}
+  h1 .sub{display:block;font-size:16px;font-weight:500;letter-spacing:0;color:#AEBACA;margin-top:8px}
   .modes{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
   .modes button{
     font-family:inherit;font-size:16px;font-weight:600;
     padding:8px 14px;border-radius:999px;cursor:pointer;
-    border:1.5px solid var(--rule);background:var(--paper-2);color:var(--ink-soft);
+    border:1.5px solid #3E4B5C;background:transparent;color:#C4CDD8;
     transition:all .15s;
   }
-  .modes button:hover{border-color:var(--ink-soft)}
-  .modes button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
+  .modes button:hover{border-color:#8A96A4;color:#fff}
+  .modes button[aria-pressed="true"]{background:#fff;border-color:#fff;color:var(--ink)}
   /* 시나리오는 한 묶음으로 다닌다. 버튼마다 "시나리오 ·"를 반복하지 않으므로
      항목을 더 넣어도 줄이 잘 늘지 않는다. 넘치면 묶음 안에서 접힌다 */
   .modes .group{
     display:flex;align-items:center;gap:5px;flex-wrap:wrap;
     padding:4px 5px 4px 11px;border-radius:999px;
-    border:1.5px solid var(--rule);background:var(--paper-2);
+    border:1.5px solid #3E4B5C;background:rgba(255,255,255,.055);
   }
   /* 라벨과 버튼 사이 세로 구분선. "시나리오"가 버튼이 아니라 묶음 이름이라는 걸 알린다.
      390px에서 묶음이 두 줄로 접혀도 라벨은 첫 줄 맨 앞에 남으므로 선이 겉돌지 않는다 */
   .modes .group > .lbl{
-    font-size:14.5px;font-weight:700;color:var(--ink-soft);white-space:nowrap;
-    padding:6px 12px 6px 0;border-right:1.5px solid var(--rule)
+    font-size:14.5px;font-weight:700;color:#AEBACA;white-space:nowrap;
+    padding:6px 12px 6px 0;border-right:1.5px solid #3E4B5C
   }
   .modes .group button{border-color:transparent;background:transparent;padding:7px 12px}
   /* 학습 순서 번호. 라벨과 붙어 다니되 글자보다 한 단계 흐리게 둬 이름이 먼저 읽히게 한다 */
   .modes .group button i{
     font-style:normal;font-size:12px;font-weight:800;
     margin-right:5px;padding:1px 6px;border-radius:999px;
-    background:var(--rule);color:#4A5765
+    background:rgba(255,255,255,.16);color:#E4E9EF
   }
-  .modes .group button[aria-pressed="true"] i{background:rgba(255,255,255,.26);color:#fff}
+  .modes .group button[aria-pressed="true"] i{background:rgba(20,28,38,.14);color:var(--ink)}
   /* 좁은 화면에서는 라벨이 첫 줄 폭을 다 먹어 버튼이 세 줄로 밀린다.
      라벨을 자기 줄로 올리고 구분선을 가로로 눕혀 버튼 일곱 개가 두 줄에 들어가게 한다 */
   @media (max-width:560px){
@@ -81,13 +102,13 @@
     /* 알약 배경을 빼 폭을 줄인다. 번호는 남기되 자리를 거의 안 먹는다 */
     .modes .group button i{
       margin-right:3px;padding:0;font-size:11.5px;
-      background:none;color:var(--ink-soft)
+      background:none;color:#8E9BAB
     }
-    .modes .group button[aria-pressed="true"] i{background:none;color:rgba(255,255,255,.75)}
+    .modes .group button[aria-pressed="true"] i{background:none;color:rgba(20,28,38,.62)}
   }
-  .modes .group button:hover{border-color:var(--rule)}
+  .modes .group button:hover{border-color:#5A6778;color:#fff}
   /* 묶음 안 규칙보다 뒤에 와야 선택 상태가 덮이지 않는다 */
-  .modes .group button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
+  .modes .group button[aria-pressed="true"]{background:#fff;border-color:#fff;color:var(--ink)}
 
   /* 노선도(1행)와 진행 순서·로그(2행)가 왼쪽에 쌓이고, 조작판이 두 행에 걸친다.
      예전처럼 조작판 한 열에 다 넣으면 세로 862px가 되어 로그가 화면 밖으로 밀렸다 */
@@ -116,7 +137,8 @@
   .panel{background:var(--paper-2);border:1.5px solid var(--rule);border-radius:14px;box-shadow:var(--shadow)}
 
   /* ── 노선도 ── */
-  .map{padding:6px;overflow:hidden;position:relative}
+  .map{padding:6px;overflow:hidden;position:relative;
+    box-shadow:0 2px 4px rgba(20,28,38,.08), 0 10px 24px rgba(20,28,38,.10), 0 30px 60px rgba(20,28,38,.12)}
   .map-scroll{overflow-x:auto;overflow-y:hidden}
 
   /* ── 커밋 두 단계 흐름 (대합실 → 승강장 → 노선도) ──
@@ -188,19 +210,26 @@
      남는 자리가 1200px에서 249px, 950px에서 0까지 줄어 잘렸다.
      block + nowrap + overflow:hidden 조합이라야 ellipsis가 먹는다 (flex면 안 먹는다).
      명령이 없을 때도 높이를 예약한다. 접었다 펴면 첫 실행에서 노선도가 툭 내려간다 */
+  /* 이 앱의 정체성은 노선도(은유)와 터미널(실전)의 짝이다. 노선도는 밝은 인쇄물로,
+     명령은 진짜 터미널처럼 어둡게 — 두 축이 한 화면에서 눈으로 갈린다 */
   .cmdbar{
-    height:44px;line-height:44px;padding:0 12px;margin-bottom:8px;border-radius:8px;
-    background:var(--paper);
+    height:46px;line-height:46px;padding:0 14px;margin-bottom:8px;border-radius:8px;
+    background:var(--ink);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.14), 0 2px 10px rgba(20,28,38,.22);
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-    font-family:var(--mono);font-size:18.5px;font-weight:700;color:var(--ink)
+    font-family:var(--mono);font-size:18.5px;font-weight:700;color:#F2F5F9;
+    transition:background .18s ease-out, box-shadow .18s ease-out;
   }
-  .cmdbar::before{content:"$ ";color:var(--head)}
-  /* 거절은 배경까지 칠한다. 뒷자리에서 "막혔다"가 즉시 읽혀야 한다 */
-  .cmdbar.e{color:#B02A37;background:#FCEBEC}
+  .cmdbar::before{content:"$ ";color:#FF5C9B}
+  /* 거절은 띠 전체를 붉게 태운다. 뒷자리에서 "막혔다"가 즉시 읽혀야 한다 */
+  .cmdbar.e{color:#FFE1E4;background:#8E1F2C;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.16), 0 2px 14px rgba(142,31,44,.4)}
+  .cmdbar.e::before{color:#FF8FA0}
   /* 명령이 아니라 팀원·GitHub이 한 일. $를 붙이면 옮겨 칠 것으로 오해한다 */
-  .cmdbar.n{color:var(--ink-soft);font-weight:600;font-size:16.5px}
+  .cmdbar.n{color:#B9C2CD;font-weight:600;font-size:16.5px;background:#232F3D}
   .cmdbar.n::before{content:""}
-  .cmdbar.empty{color:var(--ink-soft);background:transparent;font-family:inherit;font-size:15.5px;font-weight:600}
+  .cmdbar.empty{color:var(--ink-soft);background:transparent;box-shadow:none;
+    font-family:inherit;font-size:15.5px;font-weight:600}
   .cmdbar.empty::before{content:""}
   /* 한 열로 접히면 로그는 페이지 맨 아래(세 화면 밑)로 밀린다. 거절의 빨간 띠가
      폰에서 사라지면 "거절은 교재"가 뷰포트 폭 하나로 무효가 되므로, 숨기지 않고 줄인다 */
@@ -335,7 +364,8 @@
     font-family:inherit;font-size:16px;font-weight:800;
     padding:9px 18px;border-radius:999px;cursor:pointer;
     border:1.5px solid var(--head);background:var(--head);color:#fff;
-    transition:opacity .15s
+    box-shadow:0 3px 14px rgba(230,24,108,.45);
+    transition:opacity .15s, box-shadow .15s
   }
   .tour-cta:hover, .modes .tour-cta:hover{opacity:.85;border-color:var(--head)}
   /* 전역 포커스 링은 분홍이라 분홍 버튼 위에서는 안 보인다. 이 버튼만 잉크로 — 버튼 위·페이지 배경 위 둘 다 읽힌다 */

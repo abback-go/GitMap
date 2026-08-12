@@ -71,9 +71,12 @@
   .modes button[aria-pressed="true"]{background:#fff;border-color:#fff;color:var(--ink)}
   /* 시나리오는 한 묶음으로 다닌다. 버튼마다 "시나리오 ·"를 반복하지 않으므로
      항목을 더 넣어도 줄이 잘 늘지 않는다. 넘치면 묶음 안에서 접힌다 */
+  /* 알약(999px)은 버튼의 형태다. 이건 버튼을 담는 묶음이라 패널과 같은 각을 쓴다 —
+     둥글게 두면 좁은 화면에서 라벨이 자기 줄로 올라갈 때 그 밑줄이 모서리 곡선과
+     어긋나 "학습 시나리오"가 테두리 밖으로 빠져나간 것처럼 보였다 */
   .modes .group{
     display:flex;align-items:center;gap:5px;flex-wrap:wrap;
-    padding:4px 5px 4px 11px;border-radius:999px;
+    padding:4px 5px 4px 11px;border-radius:14px;
     border:1.5px solid #3E4B5C;background:rgba(255,255,255,.055);
   }
   /* 라벨과 버튼 사이 세로 구분선. "시나리오"가 버튼이 아니라 묶음 이름이라는 걸 알린다.
@@ -96,7 +99,8 @@
     .modes .group{padding:6px 8px;gap:3px}
     .modes .group > .lbl{
       flex:0 0 100%;padding:0 0 5px;margin-bottom:1px;
-      border-right:none;border-bottom:1.5px solid var(--rule)
+      /* 묶음 테두리와 같은 색. --rule(#D3DAE3)은 잉크 헤더 위에서 이 선만 밝게 튄다 */
+      border-right:none;border-bottom:1.5px solid #3E4B5C
     }
     .modes .group button{padding:7px 7px}
     /* 알약 배경을 빼 폭을 줄인다. 번호는 남기되 자리를 거의 안 먹는다 */

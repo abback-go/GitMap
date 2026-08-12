@@ -1,0 +1,28 @@
+#!/bin/sh
+# 커밋 전에 교차 참조 검사를 돌린다 (약 0.5초).
+#
+# 이름·번호·상수를 여러 곳 중 한쪽만 고친 커밋을 여기서 막는다. CLAUDE.md에
+# "먼저 검사를 돌려라"라고 적어 두는 것만으로는 사람이 잊으면 그만이라 훅으로 건다.
+#
+# 급하면 `git commit --no-verify`로 건너뛸 수 있다. 그때는 GitHub Actions가 대신 본다.
+#
+# 주의: 검사는 스테이지된 내용이 아니라 **작업 폴더의 파일**을 본다. 일부만 stage 한
+# 상태라면 이번 커밋에 안 들어갈 변경까지 함께 보므로, 막혔는데 이유를 모르겠으면
+# 스테이지 안 한 변경이 있는지 확인할 것.
+
+root=$(git rev-parse --show-toplevel)
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "pre-commit: node가 없어 교차 참조 검사를 건너뜁니다 (GitHub Actions가 대신 봅니다)"
+  exit 0
+fi
+
+# 통과했을 때는 아무 말도 하지 않는다 — 커밋마다 22줄이 쏟아지면 정작 실패했을 때
+# 눈에 안 들어온다. 어긋났을 때만 전문을 보여 준다
+out=$(node "$root/tools/check.mjs" 2>&1) || {
+  echo "$out"
+  echo ""
+  echo "교차 참조 검사에 걸려 커밋을 멈췄습니다. 위 ✗ 항목을 고치고 다시 커밋하세요."
+  echo "그대로 올려야 한다면: git commit --no-verify"
+  exit 1
+}

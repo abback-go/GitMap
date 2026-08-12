@@ -46,6 +46,19 @@ git 명령 ↔ 거절·설명 문구가 부르는 이름), 하드 제약(`localS
 규칙을 새로 만들면서 "N군데를 함께 고쳐야 한다"를 적게 되면, 그 규칙은 여기 검사로
 옮길 수 있는지 먼저 보라.
 
+**이 검사는 자동으로도 돈다.** 커밋 전에 `.githooks/pre-commit`이, 푸시·PR마다 GitHub
+Actions가 같은 것을 돌린다. 통과하면 훅은 아무 말도 하지 않고, 어긋났을 때만 전문을
+보이며 커밋을 멈춘다 — 급하면 `git commit --no-verify`로 건너뛸 수 있고 그때는
+Actions가 잡는다. **새로 clone 했으면 `npm install` 한 번**으로 훅이 걸린다
+(`prepare`가 `core.hooksPath`를 잡는다). 손으로 걸려면:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+문서에 "돌려라"라고 적어 두는 것과 훅으로 거는 것은 다르다. 문서는 Claude 세션에만,
+그것도 부탁으로 걸린다 — 웹에서 고치거나 다른 도구를 쓰면 그냥 지나간다.
+
 ### 그림을 안 바꿨다는 증명 (리팩터할 때만)
 
 ```bash

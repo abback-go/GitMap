@@ -1,0 +1,26 @@
+# 교차 참조 검사를 푸시·PR마다 돌린다.
+#
+# 훅은 로컬 커밋만 본다 — GitHub 웹에서 고치거나, 훅을 안 건 다른 PC에서 밀어 넣거나,
+# --no-verify로 건너뛴 커밋은 여기서 걸린다.
+#
+# 그림 스냅샷(tools/snapshot.mjs)은 일부러 넣지 않았다. 그건 "전후 비교" 도구라
+# 화면을 의도적으로 바꾸면 당연히 실패한다 — 통과 조건으로 걸면 정상적인 개선마다
+# 빨간불이 뜬다. 리팩터할 때 손으로 꺼내 쓰는 물건이다.
+
+name: 교차 참조 검사
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # check.mjs는 의존성이 없다. npm install이 필요 없다
+      - run: node tools/check.mjs

@@ -1014,8 +1014,10 @@ function cmdResolve(side){
 // 멈춰 있던 병합을 끝낸다. 여기서야 환승역이 생긴다
 function finishMerge(){
   const c = cur(), t = S.branches[S.conflict.name];
-  if(!S.conflict.side) return say(`아직 <code>${esc(S.conflict.file)}</code>을(를) 고치지 않았습니다. <b>어느 쪽을 남길지</b> 먼저 고르세요.`);
-  if(!S.staged) return say(`고치기는 했지만 아직 담지 않았습니다. <b>add</b>로 담아야 git이 "해결됐다"고 봅니다.`);
+  // 조용히 거절하고 false를 돌려준다. 시나리오 진행기가 이 값을 보고 단계를 안 넘긴다 —
+  // 안 그러면 충돌 상자가 남은 채 "끝났습니다"가 떠서 학생이 다 끝낸 줄 안다
+  if(!S.conflict.side){ say(`아직 <code>${esc(S.conflict.file)}</code>을(를) 고치지 않았습니다. <b>어느 쪽을 남길지</b> 먼저 고르세요.`); return false; }
+  if(!S.staged){ say(`고치기는 했지만 아직 담지 않았습니다. <b>add</b>로 담아야 git이 "해결됐다"고 봅니다.`); return false; }
   snap();
   const id = hash();
   S.commits[id] = { id, parents:[c.head, t.head], lane:c.lane, msg:`Merge ${S.conflict.name}`,
@@ -1956,7 +1958,8 @@ function scenNext(){
 function setMode(m){
   // 자유 모드를 떠날 때 진행 상태를 보관한다 — 시나리오 알약 오터치 한 번에
   // 쌓아 둔 그래프와 undoStack이 통째로 사라지지 않게. 초기화는 "처음부터"가 맡는다
-  if(mode === "free" && m !== "free" && S && S.log.length)
+  // 로그가 비어도 되돌릴 거리가 남아 있을 수 있다 — "처음부터" 직후가 그렇다(리셋 복구 한 칸)
+  if(mode === "free" && m !== "free" && S && (S.log.length || undoStack.length))
     freeSnap = { s: clone(S), undo: undoStack.slice(), msg: $("msg").value, bname: $("bname").value };
   mode = m;
   // 시나리오 버튼은 묶음(.group) 안에 있어 직계 자식만 훑으면 놓친다
@@ -2032,7 +2035,10 @@ $("btnReset").onclick  = ()=>{
 $("btnNext").onclick   = ()=>{
   if(stepIdx >= scenario.steps.length) return;
   stepStack.push({ s:clone(S), note:$("note").innerHTML, msg:$("msg").value });
-  scenario.steps[stepIdx].run(); stepIdx++; drawSteps();
+  // run()이 false를 돌려주면 그 단계가 거절된 것이다 (고친 쪽을 담지 않고 commit 등).
+  // 그대로 넘기면 충돌이 남았는데 "끝났습니다"가 된다 — 단계를 제자리에 두고 설명만 남긴다
+  if(scenario.steps[stepIdx].run() === false){ stepStack.pop(); return; }
+  stepIdx++; drawSteps();
   // 마지막 단계를 마치면 다음 편을 가리킨다. 번호가 학습 순서인데 끝이 비활성 버튼뿐이었다
   if(stepIdx >= scenario.steps.length) $("note").innerHTML += scenNext();
   // 좁은 화면에서는 버튼과 노선도가 세 화면 떨어져 있다. 누른 뒤 바뀐 그림으로 데려간다
@@ -2057,7 +2063,10 @@ $("btnPrev").onclick   = ()=>{
 $("btnRestart").onclick= ()=>setMode(mode);
 // 버튼 안의 번호 <i>가 클릭 대상이 되면 e.target에는 data-mode가 없다.
 // closest로 버튼까지 올라가야 번호를 눌러도 모드가 바뀐다
-$("modes").onclick = e=>{ const b = e.target.closest("[data-mode]"); if(b) setMode(b.dataset.mode); };
+// 이미 선택된 모드를 다시 누르면 아무 일도 없어야 한다. setMode는 상태를 초기화하므로
+// 자유 모드에서 자유 모드를 누른 학생이 쌓아 둔 커밋과 되돌리기 기록을 통째로 잃었다.
+// 다시 시작하는 길은 따로 있다 — 자유 모드는 "처음부터", 시나리오는 "다시"
+$("modes").onclick = e=>{ const b = e.target.closest("[data-mode]"); if(b && b.dataset.mode !== mode) setMode(b.dataset.mode); };
 $("msg").onkeydown = e=>{ if(e.key==="Enter") $("btnAdd").click(); };
 $("bname").onkeydown = e=>{ if(e.key==="Enter") $("btnBranch").click(); };
 
@@ -2191,8 +2200,23 @@ let tSnap = [];              // 단계 진입 시점의 노선도 상태
 let tJumping = false, tSpot = null, tBase = null;   // tSpot: 동작 뒤 함께 밝힐 대상 / tBase: 안내 시작 상태
 // 구멍 두 개를 뚫으려면 clip-path: path()가 필요하다. 안 되면 예전 한 곳 방식으로 돈다
 const CUTOUT_OK = typeof CSS !== "undefined" && CSS.supports && CSS.supports("clip-path", 'path("M0,0h1v1h-1z")');
-const tLater = (fn, ms) => { if(tJumping) fn(); else tActs.push(setTimeout(fn, ms)); };
-const tClear = () => { tActs.forEach(clearTimeout); tActs = []; };
+const tLater = (fn, ms) => {
+  if(tJumping) return fn();
+  const t = { fn };
+  t.id = setTimeout(()=>{ tActs = tActs.filter(x => x !== t); fn(); }, ms);
+  tActs.push(t);
+};
+const tClear = () => { tActs.forEach(t => clearTimeout(t.id)); tActs = []; };
+// 앞으로 넘어갈 때는 예약을 지우는 대신 즉시 끝낸다. tClear로 지우면 그 단계의 동작이
+// 통째로 빠져 다음 단계 설명("역이 늘었습니다")에 정작 역이 없다. tJumping을 켜 두면
+// 그 안에서 또 거는 예약(9단계의 두 번째 커밋)까지 함께 끝난다
+const tFlush = () => {
+  const acts = tActs; tActs = [];
+  if(!acts.length) return;
+  acts.forEach(t => clearTimeout(t.id));
+  tJumping = true;
+  try { acts.forEach(t => t.fn()); } finally { tJumping = false; }
+};
 
 // 안내 단계를 오갈 때 노선도도 같이 되감기 위한 스냅샷
 // 입력칸도 함께 담는다. 안 그러면 되감은 뒤에도 뒤 단계가 넣은 글자가 남는다
@@ -2266,6 +2290,7 @@ function tourStart(step){
 
 function tourGo(i){
   if(i < 0 || i >= TOUR.length){ if(i>=TOUR.length) tourEnd(); return; }
+  if(i > tIdx) tFlush();      // 앞으로 갈 때만. '이전'은 스냅샷으로 되돌리므로 실행하면 안 된다
   tIdx = i; tourShow();
 }
 

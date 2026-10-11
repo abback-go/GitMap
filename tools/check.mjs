@@ -229,6 +229,22 @@ check("localStorage / sessionStorage를 쓰지 않는다", () => {
   return !hits.length || [...hits, "실습실 공용 PC에 앞 사람 상태가 남습니다. 이어보기는 URL 해시(#step=13)로"];
 });
 
+check("인자를 받는 함수를 onclick에 바로 걸지 않는다", () => {
+  // onclick = cmdAdd 처럼 걸면 클릭 이벤트가 첫 인자로 들어간다.
+  // cmdAdd(file)의 file 자리에 MouseEvent가 담겨 S.stagedFile을 오염시켰다
+  const hits = [];
+  for (const m of html.matchAll(/onclick\s*=\s*(\w+)\s*;/g)) {
+    // 정규식 대신 문자열로 찾는다 — 이 파일을 스크립트로 고칠 때 백슬래시가 줄어드는 사고가 있었다
+    const head = `function ${m[1]}(`;
+    const at = html.indexOf(head);
+    if (at < 0) continue;
+    const args = html.slice(at + head.length, html.indexOf(")", at)).trim();
+    if (args)
+      hits.push(`index.html:${lineAt(html, m.index)} ${m[1]}(${args}) — 인자를 받는데 바로 걸려 있습니다`);
+  }
+  return !hits.length || [...hits, "()=>fn() 으로 감싸 이벤트가 인자 자리에 들어가지 않게 하세요"];
+});
+
 check("첫 줄이 <!DOCTYPE html>이다", () =>
   html.startsWith("<!DOCTYPE html>") ||
   "없으면 quirks mode로 떨어져 window scroll 이벤트가 안 잡힙니다 (안내 스포트라이트가 멈춥니다)");

@@ -299,6 +299,7 @@ syncPanel();                        // 사이드 UI (좌표를 안 쓴다)
 - **첫 줄 `<!DOCTYPE html>`을 지우지 말 것.** 없으면 quirks mode로 떨어져 `document.scrollingElement`가 `BODY`가 되고 **window `scroll` 이벤트가 안 잡힌다** (안내 스포트라이트가 스크롤을 못 따라갔다)
 - **이름표 폭을 글자 수로 어림잡지 말 것.** Pretendard는 고정폭이 아니라 한글 10자부터 알약을 넘쳤다. `textW()`로 실측한다. 웹폰트가 늦게 오면 첫 렌더가 대체 글꼴 기준이므로 `document.fonts.ready`에서 캐시를 비우고 다시 그린다
 - **`tourJump`는 반드시 `tBase`(안내 시작 상태)로 되돌린 뒤 재생한다.** 현재 상태 위에 덧실행하면 같은 커밋이 두 번 붙는다
+- **인자를 받는 함수를 `onclick`에 바로 걸지 말 것.** `onclick = cmdAdd`처럼 걸면 클릭 이벤트가 **첫 인자로** 들어간다 — `cmdAdd(file)`의 `file` 자리에 `MouseEvent`가 담겨 `S.stagedFile`이 오염됐다. `clone(S)`가 `{}`로 떨어뜨려 증상이 안 보였을 뿐이다. `()=>fn()`으로 감쌀 것. `tools/check.mjs`가 이 자리를 지킨다
 - Bash 도구에서 PowerShell here-string(`@'...'@`)은 동작하지 않는다. 여러 줄 커밋 메시지는 heredoc(`<<'EOF'`)을 쓸 것
 
 ---

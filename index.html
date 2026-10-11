@@ -2015,7 +2015,9 @@ function setMode(m){
 }
 
 /* ───────── 연결 ───────── */
-$("btnAdd").onclick    = cmdAdd;
+// cmdAdd(file)은 인자를 받는다. onclick에 바로 걸면 클릭 이벤트가 file 자리에 들어가
+// S.stagedFile에 MouseEvent가 담긴다. 지금은 clone(S)가 {}로 떨어뜨려 드러나지 않을 뿐이다
+$("btnAdd").onclick    = ()=>cmdAdd();
 $("btnCommit").onclick = ()=>cmdCommit($("msg").value.trim());
 // 적는 순간 "대합실"에 승객이 선다 — 아직 담기 전이라는 걸 보여 주는 자리
 $("msg").addEventListener("input", flowUpdate);

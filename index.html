@@ -292,7 +292,14 @@
   /* 1fr = minmax(auto,1fr) — nowrap 버튼 행이 트랙을 밀어 390px에서 페이지가 옆으로 넘쳤다 */
   #freePanel{display:grid;grid-template-columns:minmax(0,1fr);align-items:start}
   /* 한 열로 쌓일 때만 두 묶음 사이를 띄운다. 두 열이면 나란히 서므로 필요 없다 */
-  #freePanel .cmdcol + .cmdcol h2{margin-top:14px}
+  #freePanel .cmdcol + .cmdcol h2:first-child{margin-top:14px}
+  /* 한 열 안에 묶음이 여럿이다 — 둘째 묶음부터 위를 띄운다 */
+  #freePanel .cmdcol h2 ~ h2{margin-top:14px}
+  /* 한 열로 접히면 묶음이 세로로 쌓여 로그가 화면 밖으로 밀린다 — 머리글 간격부터 좁힌다 */
+  @media (max-width:1399px){
+    #freePanel .cmdcol h2 ~ h2{margin-top:9px}
+    #freePanel .cmdcol h2 + .row{margin-top:5px}
+  }
   /* ── 진행 순서 + 실행한 명령 ── */
   /* stepPanel이 display:none인 자유 모드에서는 로그가 자리를 다 쓴다 (JS 분기 불필요) */
   .work{padding:16px;display:flex;gap:18px;align-items:flex-start}
@@ -305,7 +312,7 @@
        글자가 커지면 바로 터지므로 최소폭을 0으로 못박는다 */
     #freePanel{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 14px}
     #freePanel .span2{grid-column:1 / -1}
-    #freePanel .cmdcol + .cmdcol h2{margin-top:0}
+    #freePanel .cmdcol + .cmdcol h2:first-child{margin-top:0}
   }
   .console h2, .work h2{
     margin:0;font-size:13.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;
@@ -592,8 +599,11 @@
       <!-- 넓은 창에서는 두 묶음이 나란히 선다. 한 줄씩 쌓으면 조작판만 862px가 되어
            아래 로그가 화면 밖으로 밀렸다 (1600×1000에서 문서 높이 1023px) -->
       <div id="freePanel">
+        <!-- 묶음은 학습 순서대로 나누되 버튼을 잠그지는 않는다 — 시연 중에 순서를 건너뛸 수
+             있어야 하고, 무엇이 있는지 다 보이는 것 자체가 지도 노릇을 한다.
+             "이제 뭘 누르지"에서 스물한 개를 훑는 대신 묶음부터 고르게 하는 것이 목적이다 -->
         <div class="cmdcol">
-          <h2>명령</h2>
+          <h2>커밋 만들기</h2>
           <div class="row" style="margin:8px 0 6px">
             <input type="text" id="msg" placeholder="무엇을 했나요" value="플레이어 이동 구현" maxlength="40" aria-label="커밋 메시지">
             <button class="act ghost" id="btnAdd" title="바꾼 것을 담습니다 (git add .)">add</button>
@@ -602,10 +612,12 @@
             <span class="k">담긴 변경</span>
             <span id="stagedTxt"></span>
           </div>
-          <div class="row" style="margin-bottom:6px">
+          <div class="row" style="margin-bottom:10px">
             <button class="act" id="btnCommit" style="flex:1" title="담은 것을 저장합니다 (git commit -m)">commit</button>
           </div>
-          <div class="row" style="margin-bottom:6px">
+
+          <h2>브랜치 · 합치기</h2>
+          <div class="row" style="margin:8px 0 6px">
             <input type="text" id="bname" placeholder="새 브랜치 이름" value="feature-jump" maxlength="30" aria-label="새 브랜치 이름">
             <button class="act" id="btnBranch" title="새 브랜치를 만들며 옮겨 탑니다 (git switch -c)">switch -c</button>
           </div>
@@ -624,7 +636,19 @@
         </div>
 
         <div class="cmdcol">
-          <h2>원격 저장소 (origin)</h2>
+          <h2>서버와 주고받기</h2>
+          <div class="row" style="margin:8px 0 6px">
+            <button class="act ghost" id="btnPush" style="flex:1" title="내 커밋을 서버에 올립니다 (git push)">push</button>
+            <button class="act ghost" id="btnPull" style="flex:1" title="받아와서 합칩니다 (git pull = fetch + merge)">pull</button>
+          </div>
+          <!-- 둘 다 서버를 들여다보는 명령. branch -a는 목록만 보고 그림을 안 바꾼다 -->
+          <div class="row" style="margin-bottom:10px">
+            <button class="act ghost" id="btnFetch" style="flex:1" title="서버 소식만 받아옵니다. 내 브랜치는 안 움직입니다 (git fetch)">fetch</button>
+            <button class="act ghost" id="btnBranchList" style="flex:1" title="내 노선과 서버 노선 목록을 봅니다. 조회만 하므로 그림은 그대로입니다 (git branch -a)">branch -a</button>
+          </div>
+
+          <!-- 내가 치는 명령이 아니라 남이 하는 일이다. 라벨이 전부 한글인 것도 그 신호다 -->
+          <h2>팀원 · GitHub</h2>
           <div class="row" style="margin:8px 0 6px">
             <button class="act ghost" id="btnTeam" style="flex:1">팀원이 커밋</button>
           </div>
@@ -632,18 +656,9 @@
           <div class="row" style="margin-bottom:6px">
             <select id="selPR" aria-label="PR을 열거나 합칠 서버의 기능 브랜치"></select>
           </div>
-          <div class="row" style="margin-bottom:6px">
+          <div class="row" style="margin-bottom:10px">
             <button class="act ghost" id="btnPROpen" style="flex:1" title="GitHub 웹에 합쳐 달라는 요청 글을 올립니다. 저장소는 그대로입니다">PR(열기)</button>
             <button class="act ghost" id="btnPR" style="flex:1" title="열린 PR을 승인해 서버에서 합칩니다 (GitHub의 Merge pull request)">PR(병합)</button>
-          </div>
-          <!-- 둘 다 서버를 들여다보는 명령. branch -a는 목록만 보고 그림을 안 바꾼다 -->
-          <div class="row" style="margin-bottom:6px">
-            <button class="act ghost" id="btnFetch" style="flex:1" title="서버 소식만 받아옵니다. 내 브랜치는 안 움직입니다 (git fetch)">fetch</button>
-            <button class="act ghost" id="btnBranchList" style="flex:1" title="내 노선과 서버 노선 목록을 봅니다. 조회만 하므로 그림은 그대로입니다 (git branch -a)">branch -a</button>
-          </div>
-          <div class="row" style="margin-bottom:10px">
-            <button class="act ghost" id="btnPull" style="flex:1" title="받아와서 합칩니다 (git pull = fetch + merge)">pull</button>
-            <button class="act ghost" id="btnPush" style="flex:1" title="내 커밋을 서버에 올립니다 (git push)">push</button>
           </div>
         </div>
 

@@ -10,6 +10,7 @@
 // 통과하면 0, 하나라도 어긋나면 1로 끝난다.
 
 import { readFileSync } from "node:fs";
+import { diffAgents } from "./agents-sync.mjs";
 
 // Windows에서 체크아웃하면 줄 끝이 CRLF다. 줄 단위로 견주는 검사들이
 // "}"를 "}\r"과 맞춰 보다 통째로 실패한다 — 읽을 때 한 번 LF로 맞춰 둔다
@@ -294,6 +295,13 @@ check("CLAUDE.md가 적은 index.html 줄 수가 실제와 맞는다", () => {
   const off = Math.abs(real - doc) / real;
   return off <= 0.05 ||
     `문서 "약 ${m[1]}줄" ↔ 실제 ${real.toLocaleString()}줄 (${Math.round(off * 100)}% 차이)`;
+});
+
+check("AGENTS.md가 CLAUDE.md와 같다 (에이전트 이름만 다르다)", () => {
+  // 두 문서는 같은 내용이어야 한다. 갈리는 자리와 고치는 법은 tools/agents-sync.mjs에 있다
+  let agents;
+  try { agents = read("AGENTS.md"); } catch { return "AGENTS.md가 없습니다 — node tools/agents-sync.mjs --write"; }
+  return diffAgents(claude, agents) ?? true;
 });
 
 // ─────────────────────────────────────────────────────────────

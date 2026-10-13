@@ -9,7 +9,7 @@ Git 브랜치 개념을 지하철 노선도 은유로 시각화한 교육용 단
 
 - 저장소: https://github.com/abback-go/GitMap
 - 배포: https://abback-go.github.io/GitMap/ (GitHub Pages, `main` 브랜치)
-- 본체: `index.html` 한 파일 (약 2,440줄)
+- 본체: `index.html` 한 파일 (약 2,600줄)
 
 ---
 
@@ -122,7 +122,7 @@ python -m http.server 8765 --bind 127.0.0.1   # run_in_background: true
 
 ```js
 S = {
-  commits: { [id]: { id, parents:[], lane, msg, color, merge?, from? } },
+  commits: { [id]: { id, parents:[], lane, msg, color, merge?, from?, file?, edit? } },
   order:   [id, ...],        // 생성 순서 = 위상 정렬 순서
   branches:{ [name]: { name, head, lane, color, remote?, known? } },
   head:    "main",           // 현재 브랜치 이름 (원격은 절대 들어가지 않음)
@@ -131,7 +131,9 @@ S = {
   staged:  null,             // git add로 담긴 변경 설명. 커밋하면 비워진다
   laneNext: 0,
   stagedFile: null,          // 담긴 변경이 건드린 파일 (충돌 판정용)
-  conflict: null,            // 멈춘 병합 { name, file, side }. side는 고른 쪽(ours/theirs/both)
+  stagedEdit: null,          // 그 파일에서 바꾼 줄 한 줄 (충돌 상자 표시용)
+  conflict: null,            // 멈춘 병합 { name, file, side, ours, oursEdit, theirsEdit }.
+                             // side는 고른 쪽(ours/theirs/both), ours는 내 브랜치 이름
   log:     [{ t, k }]        // k: 없으면 명령, "e" 거절/오류($ 붙음), "n" 명령 아닌 설명,
                              //    "o" 명령이 뿌린 출력 ($·# 없는 흐린 줄),
                              //    "x" git이 뱉은 붉은 줄 (CONFLICT — $를 붙이면 명령으로 오해한다)
@@ -153,7 +155,7 @@ S = {
 | 함수 | 동작 |
 |---|---|
 | `cmdInit()` | 빈 폴더를 저장소로 만든다(`git init`). `main` 브랜치만 생기고 커밋은 없다 |
-| `cmdAdd()` | 입력칸 내용을 담는다(`git add .`). `S.staged`에 들어간다 |
+| `cmdAdd(file?, edit?)` | 입력칸 내용을 담는다(`git add .`). `S.staged`에 들어간다. `file`·`edit`는 Conflict 시나리오·안내만 넘긴다 |
 | `cmdCommit(msg, auto)` | 담긴 게 없으면 **거절**. `auto=true`면 담기까지 한 번에 (시나리오·자동 안내용) |
 | `cmdBranch(name)` / `cmdSwitch(name)` | 브랜치 생성(+이동) · 이동. `cmdSwitch`는 **로컬에 없고 원격에만 있는 이름**이면 추적 브랜치를 만들며 이동한다 |
 | `cmdClone()` | 원격 전체를 로컬로 복사 + 기본 브랜치 생성. `S.head`가 비어 있을 때만 동작 |
@@ -175,6 +177,9 @@ S = {
 - `setMode`는 `clone`이면 `freshClone()`, `commit`이면 `freshEmpty()`, 아니면 `fresh(m === "free" || m === "pr")`를 부른다. 즉 **원격을 갖고 시작하는 모드는 자유 모드와 pr·clone**이고, `push`는 **원격 없이 시작해 `git remote add`부터 직접 한다**. `remoteGuard`는 `S.branches[REMOTE]`가 아니라 **`S.origin`**을 본다 — 주소만 등록하고 아직 아무것도 안 올린 중간 상태가 있기 때문
 - **`S.head`가 빈 채로 시작하는 모드가 둘이다** — `clone`(서버에만 저장소가 있다)과 `commit`(저장소 자체가 없고 커밋도 0개다). `cur()`가 `undefined`가 되므로 `render()`나 새 명령에서 `cur()`를 쓸 때 반드시 방어할 것 (`cur().head`에서 터졌던 자리다). 로그 머리말(`git init` 묶음)은 `clone`·`commit`·`push` 세 모드에서 숨긴다 — 그 줄들을 시나리오가 직접 실행하므로 위아래로 겹친다
 - **충돌은 파일 *이름*만으로 판정한다.** 커밋의 `file` 한 칸이 전부고 내용은 없다 — 필요한 건 "갈라진 뒤 양쪽이 같은 파일을 고쳤나"뿐이다(`touchedSince`). 파일을 안 적은 커밋(`file` 없음)끼리는 절대 충돌하지 않으므로 **기존 시나리오는 그대로 동작한다**
+  - **`edit`(바꾼 줄 한 줄)는 판정에 안 쓴다.** 충돌 상자(`#cfxDiff`)에 `<<<<<<<`·`=======`·`>>>>>>>` 모양으로 **부딪힌 줄**을 보여 줄 때만 쓴다(`lastEdit`). 줄이 없는 충돌(자유 모드)은 그 칸을 숨긴다. 고른 뒤에는 버린 쪽 줄에 취소선을 긋는다
+  - **충돌을 일으키는 두 커밋은 이름부터 같은 줄을 가리켜야 한다**(`점프 버튼 글꼴 변경` ↔ `UI 폰트 교체`, 안내는 `버튼 색 빨강으로` ↔ `버튼 색 파랑으로`). 예전의 `점프 물리`처럼 CSS 일로 안 들리는 이름은 "왜 style.css가 부딪히지?"를 만든다(43차)
+  - **역의 해시 줄에 바꾼 파일 이름이 붙는다**(`file`이 있고 환승역이 아닐 때). 역 아래는 비워 두는 규칙이라 해시와 한 줄에 싣고 가운데 맞춤을 유지한다 — 역 오른쪽에 따로 두면 390px에서 다음 역 해시와 붙는다
   - **충돌 중에는 `switch`·`branch`·`merge`·`rebase`·`push`·`pull`이 막힌다**(`conflictGuard`). 실제 git도 `you need to resolve your current index first`라며 거절한다
   - **시나리오·안내가 학생의 선택을 덮어쓰지 않는다.** 해결 단계는 `if(S.conflict && !S.conflict.side) cmdResolve("both")` — 이미 고른 게 있으면 그대로 두고 안 골랐을 때만 기본값으로 간다. 덮어쓰면 직접 눌러 본 것이 흔적도 없이 사라진다. 그래서 진행 순서 문구도 `# style.css를 열어 남길 쪽을 정했습니다`로 **중립**이다
   - **다시 고르면 로그 줄을 갈아 끼운다.** 학생이 `내 것`을 눌러 본 뒤 시나리오가 `둘 다`로 진행하면 선택 줄이 두 개 쌓여 무엇으로 정했는지 헷갈렸다. 단 **담은 뒤에 바꾼 경우**는 사이에 `git add` 줄이 끼므로 새 줄로 남는다 — 그건 기록이 맞다

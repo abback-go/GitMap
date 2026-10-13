@@ -371,6 +371,17 @@
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap
   }
   .cfx .k span{font-family:var(--mono);font-weight:700}
+  /* 부딪힌 줄. git이 파일에 끼워 넣는 <<<<<<< ======= >>>>>>> 표시를 그대로 보인다 */
+  .cfxdiff{
+    margin:0 0 8px;padding:7px 10px;background:#fff;border:1px solid #F3C2C7;border-radius:7px;
+    font-family:var(--mono);font-size:13px;line-height:1.6;color:var(--ink);
+    white-space:pre;overflow-x:auto
+  }
+  .cfxdiff[hidden]{display:none}
+  .cfxdiff .mk{color:#8E1F2C;font-weight:700}
+  .cfxdiff .who{font-weight:800}
+  /* 고른 뒤에는 버린 쪽 줄에 취소선을 긋는다. opacity로 흐리면 대비가 기준 아래로 떨어진다 */
+  .cfxdiff .drop{color:var(--ink-soft);text-decoration:line-through}
   .cfx .act{border-color:#E4A9B0;color:#8E1F2C}
   .cfx .act:hover{border-color:#B02A37}
   /* 고른 쪽은 눌린 채로 남는다 — 무엇을 골랐는지 잊지 않게 */
@@ -587,6 +598,8 @@
            #freePanel 밖에 두어야 시나리오 모드에서도 보인다 (stagedBox가 안 보였던 그 자리) -->
       <div class="cfx" id="cfxBox" role="status" aria-live="polite" hidden>
         <div class="k">충돌 · <span id="cfxFile"></span></div>
+        <!-- 부딪힌 줄. 편집기에서 실제로 보게 될 모양 그대로 보여 준다 -->
+        <pre class="cfxdiff" id="cfxDiff"></pre>
         <div class="row">
           <button class="act ghost" id="btnOurs"   style="flex:1" title="내 브랜치 쪽 내용을 남깁니다">내 것</button>
           <button class="act ghost" id="btnTheirs" style="flex:1" title="합쳐 오는 브랜치 쪽 내용을 남깁니다">상대 것</button>
@@ -761,7 +774,7 @@ function textW(s, weight){
 // origin/main 이름표와 따로 둔다 — git remote add는 주소만 적고 아무것도 주고받지 않는다
 function fresh(withRemote){
   S = { commits:{}, order:[], branches:{}, head:"main", laneNext:0, log:[],
-        staged:null, stagedFile:null, conflict:null, origin:null };
+        staged:null, stagedFile:null, stagedEdit:null, conflict:null, origin:null };
   makeBranch("main");
   doCommit("최초 커밋");
   // 원격은 같은 역에서 출발한다. lane 번호를 새로 쓰지 않아 로컬 브랜치 색이 밀리지 않는다
@@ -780,7 +793,7 @@ function fresh(withRemote){
 function freshClone(){
   // clone은 주소를 받아 통째로 복사하는 명령이라 origin 등록도 clone이 대신 해 준다
   S = { commits:{}, order:[], branches:{}, head:"", laneNext:0, log:[],
-        staged:null, stagedFile:null, conflict:null, origin:ORIGIN_URL };
+        staged:null, stagedFile:null, stagedEdit:null, conflict:null, origin:ORIGIN_URL };
   const mkRemote = (name, base) => {
     const r = { name:RPFX + name, head:base, known:base,
                 lane:S.laneNext, color:COLORS[S.laneNext % COLORS.length], remote:true };
@@ -807,7 +820,7 @@ function freshClone(){
 // 아무것도 없는 빈 폴더. git init 전이라 브랜치도 커밋도 없다 (commit 시나리오의 출발점)
 function freshEmpty(){
   S = { commits:{}, order:[], branches:{}, head:"", laneNext:0, log:[],
-        staged:null, stagedFile:null, conflict:null, origin:null };
+        staged:null, stagedFile:null, stagedEdit:null, conflict:null, origin:null };
   undoStack = [];
 }
 function hash(){
@@ -835,9 +848,10 @@ function ancestors(id){
 const isAncestor = (a,b) => !!a && ancestors(b).has(a);
 
 /* ───────── 명령 ───────── */
-// file은 "이 커밋이 건드린 파일". 내용은 다루지 않고 이름만 갖는다 —
-// 충돌 판정에 필요한 건 "같은 파일을 양쪽이 고쳤나" 하나뿐이다 (Conflict 시나리오)
-function doCommit(msg, file){
+// file은 "이 커밋이 건드린 파일". 충돌 판정은 이 이름 하나로 한다 —
+// 필요한 건 "같은 파일을 양쪽이 고쳤나" 하나뿐이다 (Conflict 시나리오).
+// edit는 그 파일에서 바꾼 줄 한 줄이다. 판정에는 안 쓰고, 충돌 상자에 "부딪힌 줄"을 보여 줄 때만 쓴다
+function doCommit(msg, file, edit){
   const b = cur();
   // 지금 서 있는 역에서 같은 줄로 이미 선로가 뻗어 있으면(원격이 앞서 나간 경우 등)
   // 새 줄로 갈라진다. 색은 유지해서 같은 노선임을 보여준다
@@ -846,6 +860,7 @@ function doCommit(msg, file){
   const id = hash();
   S.commits[id] = { id, parents: b.head?[b.head]:[], lane:b.lane, msg, color:b.color };
   if(file) S.commits[id].file = file;
+  if(file && edit) S.commits[id].edit = edit;
   S.order.push(id);
   b.head = id;
   return id;
@@ -860,9 +875,21 @@ function touchedSince(head, baseSet){
   });
   return out;
 }
+// 공통 조상 이후 이 브랜치 쪽에서 그 파일을 마지막으로 고친 줄. 충돌 상자에 보여 줄 내용이다
+function lastEdit(head, baseSet, file){
+  const mine = ancestors(head);
+  for(let i = S.order.length-1; i >= 0; i--){
+    const c = S.commits[S.order[i]];
+    if(mine.has(c.id) && !baseSet.has(c.id) && c.file === file && c.edit) return c.edit;
+  }
+  return null;
+}
 // git add — 바꾼 것을 "담는" 단계. 담기지 않은 건 커밋되지 않는다
-// file은 Conflict 시나리오에서만 쓰인다 (어느 파일을 건드렸는지)
-function doStage(msg, file){ S.staged = msg; S.stagedFile = file || null; log(`git add .`); }
+// file·edit는 Conflict 시나리오와 안내에서만 쓰인다 (어느 파일의 어느 줄을 고쳤는지)
+function doStage(msg, file, edit){
+  S.staged = msg; S.stagedFile = file || null; S.stagedEdit = (file && edit) || null;
+  log(`git add .`);
+}
 // git init — 빈 폴더를 저장소로 만든다. 브랜치 이름만 정해지고 역은 하나도 생기지 않는다
 function cmdInit(){
   if(S.head) return say("이미 내 컴퓨터에 저장소가 있습니다.");
@@ -873,7 +900,7 @@ function cmdInit(){
   say(`빈 폴더가 <b>저장소</b>가 되었습니다. 그런데 <b>노선도는 아직 비어 있습니다</b> — <code>main</code>이라는 <b>이름만 정해졌을 뿐</b> 역이 하나도 없어서 이름표를 붙일 곳도 없습니다. 브랜치는 <b>역을 가리키는 이름표</b>라서, 가리킬 역이 없으면 그림에도 나타나지 않습니다.`);
   render();
 }
-function cmdAdd(file){
+function cmdAdd(file, edit){
   // 충돌을 고친 뒤의 add는 성격이 다르다 — 새 변경을 담는 게 아니라 "해결했다"는 표시다
   if(S.conflict){
     if(!S.conflict.side)
@@ -892,7 +919,7 @@ function cmdAdd(file){
   if(S.staged) return say(`이미 <b>${esc(S.staged)}</b> 이(가) 담겨 있습니다. <b>커밋</b>으로 저장하세요.`);
   if(!msg) return say("담을 변경이 없습니다. 무엇을 했는지 먼저 적으세요.");
   snap();
-  doStage(msg, file);
+  doStage(msg, file, edit);
   $("msg").value = "";
   say(`<b>${esc(msg)}</b> 을(를) 담았습니다. 아직 저장된 건 아닙니다 — <b>커밋</b>을 눌러야 역이 생깁니다.`);
   render();
@@ -917,9 +944,9 @@ function cmdCommit(msg, auto){
     doStage((msg || "").trim() || "작업 내용 저장");
   } else snap();
   msg = S.staged;
-  const f = S.stagedFile;
-  S.staged = null; S.stagedFile = null;
-  const id = doCommit(msg, f);
+  const f = S.stagedFile, e = S.stagedEdit;
+  S.staged = null; S.stagedFile = null; S.stagedEdit = null;
+  const id = doCommit(msg, f, e);
   log(`git commit -m "${msg}"`);
   say(`<b>${esc(S.head)}</b> 노선 끝에 역 <code>${id}</code> 이(가) 새로 생겼습니다. 담겼던 변경이 저장되고 HEAD도 함께 앞으로 이동합니다.`);
   render();
@@ -997,7 +1024,9 @@ function cmdMerge(name){
     const base = new Set([...ancestors(c.head)].filter(id => ancestors(t.head).has(id)));
     const both = [...touchedSince(c.head, base)].filter(f => touchedSince(t.head, base).has(f));
     if(both.length){
-      S.conflict = { name, file:both[0], side:null };
+      // 부딪힌 줄도 함께 남긴다. "같은 자리를 다르게 고쳤다"를 눈으로 보여 줄 재료다
+      S.conflict = { name, file:both[0], side:null, ours:S.head,
+                     oursEdit:lastEdit(c.head, base, both[0]), theirsEdit:lastEdit(t.head, base, both[0]) };
       log(`git merge ${name}`);
       log(`CONFLICT (content): Merge conflict in ${both[0]}`, "x");   // git이 뱉은 줄이라 $를 안 붙인다
       log(`Automatic merge failed; fix conflicts and then commit the result.`, "o");
@@ -1021,7 +1050,7 @@ function cmdResolve(side){
   if(!S.conflict) return say("지금은 충돌이 없습니다.");
   snap();
   S.conflict.side = side;
-  S.staged = null; S.stagedFile = null;      // 고칠 때마다 다시 담아야 한다
+  S.staged = null; S.stagedFile = null; S.stagedEdit = null;   // 고칠 때마다 다시 담아야 한다
   // 마음을 바꿔 다시 고르면 줄을 갈아 끼운다. 두 번 찍히면 무엇으로 정했는지 헷갈린다.
   // 담은 뒤에 바꾼 경우는 사이에 add 줄이 끼므로 새 줄로 남는다 — 그건 기록이 맞다
   const line = `# ${S.conflict.file}에서 ${SIDE_TXT[side]} 남기기로 했습니다`;
@@ -1044,7 +1073,7 @@ function finishMerge(){
                     color:c.color, merge:true, file:S.conflict.file };
   S.order.push(id); c.head = id;
   const side = S.conflict.side, file = S.conflict.file;
-  S.conflict = null; S.staged = null; S.stagedFile = null;
+  S.conflict = null; S.staged = null; S.stagedFile = null; S.stagedEdit = null;
   log(`git commit   # 충돌 해결`);
   say(`<b>환승역</b> <code>${id}</code> 이(가) 생기며 병합이 끝났습니다. <code>${esc(file)}</code>에는 <b>${SIDE_TXT[side]}</b> 남았습니다. 충돌이 났어도 <b>결과는 보통의 병합과 같습니다</b> — 부모가 둘인 환승역 하나입니다.`);
   render();
@@ -1361,6 +1390,19 @@ function syncPanel(){
   $("cfxBox").hidden = !S.conflict;
   if(S.conflict){
     $("cfxFile").textContent = S.conflict.file;
+    // 부딪힌 줄. 줄 내용이 없는 충돌(자유 모드 등)에서는 상자를 숨긴다
+    const cf = S.conflict, hasDiff = !!(cf.oursEdit && cf.theirsEdit);
+    $("cfxDiff").hidden = !hasDiff;
+    if(hasDiff){
+      const keep = s => !cf.side || cf.side === "both" || cf.side === s;
+      const line = (txt, s) => `<span class="${keep(s) ? "" : "drop"}">${esc(txt)}</span>`;
+      $("cfxDiff").innerHTML =
+          `<span class="mk">&lt;&lt;&lt;&lt;&lt;&lt;&lt; ${esc(cf.ours)}</span> <span class="who">(내 것)</span>\n`
+        + line(cf.oursEdit, "ours") + "\n"
+        + `<span class="mk">=======</span>\n`
+        + line(cf.theirsEdit, "theirs") + "\n"
+        + `<span class="mk">&gt;&gt;&gt;&gt;&gt;&gt;&gt; ${esc(cf.name)}</span> <span class="who">(상대 것)</span>`;
+    }
     [["btnOurs","ours"],["btnTheirs","theirs"],["btnBoth","both"]].forEach(([id,side])=>
       $(id).setAttribute("aria-pressed", S.conflict.side === side));
     // 세 단계 중 어디까지 왔는지. 순서를 지켜야 병합이 끝난다
@@ -1750,6 +1792,15 @@ function paint({ reach, unfetched, rows, labels, rlabels, emptyBand, hasBand, lb
       fill: !live ? "#AEB8C4" : (soft ? REMOTE_COLOR : "#141C26"),
       opacity: soft ? .9 : 1 });
     h.textContent = id;
+    // 바꾼 파일 이름을 해시 뒤에 붙인다. 두 노선의 역에 같은 이름이 보이면 충돌을 미리 짐작할 수 있다.
+    // 역 아래는 비워 두는 규칙이라 해시 줄에 함께 싣고 가운데 맞춤을 유지한다 — 역 오른쪽에 따로
+    // 두면 390px에서 다음 역 해시와 6px까지 붙었다. 환승역은 뺀다(양옆 역과 겹치고, 충돌을 예고하는 단서도 아니다)
+    if(c.file && !c.merge){
+      const f = el("tspan",{ dx:8, "font-family":"\"Pretendard Variable\",Pretendard,\"Malgun Gothic\",sans-serif", "font-size":12.5,
+        fill: live ? "#B02A37" : "#BAC3CD" });
+      f.textContent = c.file;
+      h.appendChild(f);
+    }
     g.appendChild(h);
 
     const m = el("text",{ y:-49, "text-anchor":"middle","font-size":14,
@@ -1878,14 +1929,16 @@ const SCEN = {
   // 멈춘 자리에서 add·commit이 다시 나오는 게 요점이다 — 충돌 해결도 결국 커밋이다
   conflict: {
     title:"같은 파일을 고쳐 충돌이 났을 때",
-    intro:"<b>충돌은 고장이 아닙니다.</b> 갈라진 두 노선이 <b>같은 파일</b>을 서로 다르게 고쳤을 때, git이 <b>어느 쪽이 맞는지 몰라 사람에게 물어보는</b> 것입니다. 여기서는 양쪽 모두 <code>style.css</code>를 고쳐 놓고 합쳐 봅니다. 아래 ‘다음 단계’를 눌러 한 줄씩 실행하세요.",
+    intro:"<b>충돌은 고장이 아닙니다.</b> 갈라진 두 노선이 <b>같은 파일</b>을 서로 다르게 고쳤을 때, git이 <b>어느 쪽이 맞는지 몰라 사람에게 물어보는</b> 것입니다. 여기서는 양쪽 모두 <code>style.css</code>의 <b>버튼 글꼴 줄</b>을 서로 다르게 고쳐 놓고 합쳐 봅니다. 아래 ‘다음 단계’를 눌러 한 줄씩 실행하세요.",
     steps:[
       { cmd:'git switch -c feature-jump', run:()=>cmdBranch("feature-jump") },
-      { cmd:['git add .','git commit -m "점프 물리"'],
-        run:()=>{ $("msg").value = "점프 물리"; cmdAdd("style.css"); cmdCommit(); } },
+      // 두 커밋 이름이 같은 줄(버튼 글꼴)을 가리켜야 "왜 부딪히지?"가 안 생긴다.
+      // 예전 이름 "점프 물리"는 CSS 일로 안 들려서, style.css를 고쳤다는 설명과 어긋났다
+      { cmd:['git add .','git commit -m "점프 버튼 글꼴 변경"'],
+        run:()=>{ $("msg").value = "점프 버튼 글꼴 변경"; cmdAdd("style.css", 'font-family: "Jua";'); cmdCommit(); } },
       { cmd:'git switch main', run:()=>cmdSwitch("main") },
       { cmd:['git add .','git commit -m "UI 폰트 교체"'],
-        run:()=>{ $("msg").value = "UI 폰트 교체"; cmdAdd("style.css"); cmdCommit(); } },
+        run:()=>{ $("msg").value = "UI 폰트 교체"; cmdAdd("style.css", 'font-family: "Pretendard";'); cmdCommit(); } },
       { cmd:'git merge feature-jump', run:()=>cmdMerge("feature-jump") },   // 여기서 멈춘다
       // 학생이 이미 골랐으면 그 선택을 존중한다. 안 골랐을 때만 기본값으로 진행한다 —
       // 시나리오가 덮어쓰면 직접 눌러 본 것이 흔적도 없이 사라진다
@@ -2193,11 +2246,11 @@ const TOUR = [
   // 여기까지는 양쪽이 서로 다른 파일을 고쳐 자동으로 합쳐졌다.
   // 같은 파일을 고치면 어떻게 되는지 직접 겪어 본다 (3번 Conflict 시나리오의 예고편)
   { sel:"#bname", title:"이번엔 같은 파일을 고쳐 봅니다",
-    body:"지금까지 합쳐진 건 <b>양쪽이 서로 다른 파일</b>을 고쳤기 때문입니다. 이제 <code>feature-ui</code> 노선과 <code>main</code> <b>양쪽에서 같은 파일</b> <code>style.css</code>를 고쳐 두겠습니다 — 아래 로그에 <b>여섯 줄</b>이 한꺼번에 찍히는 게 그 준비입니다.",
+    body:"지금까지 합쳐진 건 <b>양쪽이 서로 다른 파일</b>을 고쳤기 때문입니다. 이제 <code>feature-ui</code> 노선과 <code>main</code> <b>양쪽에서 같은 파일</b> <code>style.css</code>의 <b>같은 줄(버튼 색)</b>을 서로 다르게 고쳐 두겠습니다 — 아래 로그에 <b>여섯 줄</b>이 한꺼번에 찍히는 게 그 준비입니다.",
     act:()=>{ cmdBranch("feature-ui");
-              $("msg").value = "버튼 색 변경";   cmdAdd("style.css"); cmdCommit();
+              $("msg").value = "버튼 색 빨강으로"; cmdAdd("style.css", "background: #E8542F;"); cmdCommit();
               cmdSwitch("main");
-              $("msg").value = "폰트 크기 조정"; cmdAdd("style.css"); cmdCommit(); } },
+              $("msg").value = "버튼 색 파랑으로"; cmdAdd("style.css", "background: #2D6CDF;"); cmdCommit(); } },
 
   { sel:"#selMerge", title:"합치려는데 멈춥니다",
     body:"<b>충돌은 고장이 아닙니다.</b> 같은 파일을 양쪽이 다르게 고쳐서 <b>git이 어느 쪽이 맞는지 모르는</b> 것뿐입니다. 그래서 <b>사람에게 물어봅니다</b>. 노선도를 보세요 — 두 노선이 만나려다 멈춘 자리가 <b>빨간 점선</b>으로 표시되고, <b>환승역은 아직 없습니다</b>.",
